@@ -74,6 +74,20 @@ public class SettingsService
         set { _settings.IsMuted = value; Save(); }
     }
 
+    public Dictionary<string, HotkeyBinding> HotkeyBindings
+    {
+        get => _settings.HotkeyBindings;
+        set { _settings.HotkeyBindings = value; Save(); }
+    }
+
+    // Empty string/null means "use the bundled default" (Assets/alert.wav,
+    // falling back to the system beep if that's missing too).
+    public string? AlertSoundPath
+    {
+        get => _settings.AlertSoundPath;
+        set { _settings.AlertSoundPath = value; Save(); }
+    }
+
     private AppSettings Load()
     {
         // A fresh install has nothing to migrate away from — start at the
@@ -81,7 +95,7 @@ public class SettingsService
         // freshly-saved regions (they'd otherwise deserialize back as
         // SettingsVersion 0 next launch and get cleared again, forever).
         if (!File.Exists(_settingsPath))
-            return new AppSettings { SettingsVersion = 2 };
+            return new AppSettings { SettingsVersion = 3, HotkeyBindings = HotkeyActions.Defaults() };
         try
         {
             var json = File.ReadAllText(_settingsPath);
@@ -109,11 +123,23 @@ public class SettingsService
                 Save();
             }
 
+            // 3: hotkeys became user-configurable. Anyone upgrading from an
+            // older settings.json has no HotkeyBindings on disk yet — seed
+            // today's defaults so their existing Alt+T/Alt+N/etc muscle memory
+            // keeps working until they intentionally rebind something.
+            if (settings.HotkeyBindings.Count == 0)
+            {
+                settings.HotkeyBindings = HotkeyActions.Defaults();
+                settings.SettingsVersion = 3;
+                _settings = settings;
+                Save();
+            }
+
             return settings;
         }
         catch
         {
-            return new AppSettings();
+            return new AppSettings { SettingsVersion = 3, HotkeyBindings = HotkeyActions.Defaults() };
         }
     }
 
@@ -130,4 +156,6 @@ public class AppSettings
     public bool AutoScanEnabled { get; set; } = false;
     public bool IsMuted { get; set; } = false;
     public int SettingsVersion { get; set; } = 0;
+    public Dictionary<string, HotkeyBinding> HotkeyBindings { get; set; } = new();
+    public string? AlertSoundPath { get; set; } = null;
 }

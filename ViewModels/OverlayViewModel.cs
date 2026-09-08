@@ -98,10 +98,17 @@ public class OverlayViewModel : ViewModelBase
             foreach (var vm in ActiveTimers)
                 vm.RefreshMute();
         });
+        SettingsCommand = new DuneTimer.Helpers.RelayCommand(_ => OpenSettingsRequested?.Invoke());
     }
 
     public System.Windows.Input.ICommand AutoDetectCommand { get; }
     public System.Windows.Input.ICommand MuteCommand { get; }
+    public System.Windows.Input.ICommand SettingsCommand { get; }
+
+    // Set by App.xaml.cs after construction — OverlayViewModel doesn't hold
+    // the Settings/Hotkey services directly, so opening the window is
+    // delegated the same way ControlPanelViewModel.CloseWindow is.
+    public Action? OpenSettingsRequested { get; set; }
 
     public bool IsMuted => _soundService.IsMuted;
     public string MuteGlyph => IsMuted ? "🔇" : "🔊";

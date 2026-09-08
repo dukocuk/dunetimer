@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using DuneTimer.Helpers;
+using DuneTimer.Models;
 using DuneTimer.Services;
 using DuneTimer.ViewModels;
 using DuneTimer.Views;
@@ -46,6 +47,7 @@ public partial class App : Application
 
         // Create overlay
         _overlayVm = new OverlayViewModel(_timerService, _scanner, _soundService);
+        _overlayVm.OpenSettingsRequested = ShowSettings;
         _overlay = new OverlayWindow
         {
             DataContext = _overlayVm
@@ -62,7 +64,7 @@ public partial class App : Application
         // Register global hotkeys after window handle is available
         _overlay.SourceInitialized += (_, _) =>
         {
-            _hotkeyService!.Register(_overlay);
+            _hotkeyService!.Register(_overlay, _settingsService!.HotkeyBindings);
             _hotkeyService.ToggleOverlayRequested += ToggleOverlay;
             _hotkeyService.NewTimerRequested += ShowControlPanel;
             _hotkeyService.SelectRegionRequested += ShowRegionSelector;
@@ -84,13 +86,30 @@ public partial class App : Application
         Console.WriteLine("═══════════════════════════════════════");
         Console.WriteLine("  ⏱  DUNE TIMER is running!");
         Console.WriteLine("═══════════════════════════════════════");
-        Console.WriteLine("  Alt+T  — Show/hide overlay");
-        Console.WriteLine("  Alt+N  — Add new timer (manual)");
-        Console.WriteLine("  Ctrl+Alt+R — Select OCR scan region");
-        Console.WriteLine("  Alt+S  — Start/stop OCR scanner");
-        Console.WriteLine("  Alt+D  — Run Auto-Detect (works even if you can't click the overlay in-game)");
-        Console.WriteLine("  Alt+X  — Toggle click-through (for dragging/clicking the overlay)");
+        PrintHotkey(HotkeyActions.ToggleOverlay, "Show/hide overlay");
+        PrintHotkey(HotkeyActions.NewTimer, "Add new timer (manual)");
+        PrintHotkey(HotkeyActions.SelectRegion, "Select OCR scan region");
+        PrintHotkey(HotkeyActions.ToggleScanner, "Start/stop OCR scanner");
+        PrintHotkey(HotkeyActions.AutoDetect, "Run Auto-Detect (works even if you can't click the overlay in-game)");
+        PrintHotkey(HotkeyActions.ToggleInteractive, "Toggle click-through (for dragging/clicking the overlay)");
+        Console.WriteLine("  (Rebind these anytime from the ⚙ Settings button on the overlay)");
         Console.WriteLine("═══════════════════════════════════════");
+    }
+
+    private void PrintHotkey(string action, string description)
+    {
+        var combo = _settingsService!.HotkeyBindings.TryGetValue(action, out var binding)
+            ? binding.ToDisplayString()
+            : "Unbound";
+        Console.WriteLine($"  {combo,-12} — {description}");
+    }
+
+    private void ShowSettings()
+    {
+        var vm = new SettingsViewModel(_settingsService!, _hotkeyService!, _soundService!);
+        var window = new SettingsWindow { DataContext = vm };
+        vm.CloseWindow = () => window.Close();
+        window.ShowDialog();
     }
 
     private System.Drawing.Rectangle? GetOverlayPhysicalRect()

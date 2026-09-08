@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Interop;
 using DuneTimer.Helpers;
+using DuneTimer.Models;
 
 namespace DuneTimer.Services;
 
@@ -8,6 +9,7 @@ public class HotkeyService : IDisposable
 {
     private IntPtr _hwnd;
     private HwndSource? _source;
+    private string[] _registeredActions = Array.Empty<string>();
 
     public event Action? ToggleOverlayRequested;
     public event Action? NewTimerRequested;
@@ -16,33 +18,53 @@ public class HotkeyService : IDisposable
     public event Action? ToggleInteractiveRequested;
     public event Action? AutoDetectRequested;
 
-    public void Register(Window window)
+    public List<string> Register(Window window, Dictionary<string, HotkeyBinding> bindings)
     {
         _hwnd = new WindowInteropHelper(window).Handle;
         _source = HwndSource.FromHwnd(_hwnd);
         _source?.AddHook(WndProc);
 
-        var modifiers = NativeMethods.MOD_ALT | NativeMethods.MOD_NOREPEAT;
-        
-        if (!NativeMethods.RegisterHotKey(_hwnd, NativeMethods.HOTKEY_TOGGLE_OVERLAY, modifiers, NativeMethods.VK_T))
-            Console.WriteLine("Warning: Failed to register Alt+T. It might be used by another app.");
-            
-        if (!NativeMethods.RegisterHotKey(_hwnd, NativeMethods.HOTKEY_NEW_TIMER, modifiers, NativeMethods.VK_N))
-            Console.WriteLine("Warning: Failed to register Alt+N. It might be used by another app.");
-            
-        if (!NativeMethods.RegisterHotKey(_hwnd, NativeMethods.HOTKEY_SELECT_REGION, modifiers | NativeMethods.MOD_CONTROL, NativeMethods.VK_R))
+        return RegisterAll(bindings);
+    }
+
+    // Unregisters whatever is currently bound and registers the new bindings
+    // in its place — lets Settings apply a rebind live, with no app restart.
+    public List<string> Reregister(Dictionary<string, HotkeyBinding> bindings)
+    {
+        UnregisterAll();
+        return RegisterAll(bindings);
+    }
+
+    // Returns the action names that failed to register (combo already claimed
+    // by another app), so callers can surface a warning instead of only
+    // logging to the console.
+    private List<string> RegisterAll(Dictionary<string, HotkeyBinding> bindings)
+    {
+        var failed = new List<string>();
+        _registeredActions = HotkeyActions.All;
+
+        foreach (var action in HotkeyActions.All)
         {
-            Console.WriteLine("Warning: Failed to register Ctrl+Alt+R.");
+            if (!bindings.TryGetValue(action, out var binding))
+                continue;
+
+            var id = HotkeyActions.HotkeyId(action);
+            var modifiers = binding.Modifiers | NativeMethods.MOD_NOREPEAT;
+
+            if (!NativeMethods.RegisterHotKey(_hwnd, id, modifiers, binding.Key))
+            {
+                failed.Add(action);
+                Console.WriteLine($"Warning: Failed to register {binding.ToDisplayString()} for {HotkeyActions.DisplayName(action)}. It might be used by another app.");
+            }
         }
-            
-        if (!NativeMethods.RegisterHotKey(_hwnd, NativeMethods.HOTKEY_TOGGLE_SCANNER, modifiers, NativeMethods.VK_S))
-            Console.WriteLine("Warning: Failed to register Alt+S. It might be used by another app.");
 
-        if (!NativeMethods.RegisterHotKey(_hwnd, NativeMethods.HOTKEY_TOGGLE_INTERACTIVE, modifiers, NativeMethods.VK_X))
-            Console.WriteLine("Warning: Failed to register Alt+X. It might be used by another app.");
+        return failed;
+    }
 
-        if (!NativeMethods.RegisterHotKey(_hwnd, NativeMethods.HOTKEY_AUTO_DETECT, modifiers, NativeMethods.VK_D))
-            Console.WriteLine("Warning: Failed to register Alt+D. It might be used by another app.");
+    private void UnregisterAll()
+    {
+        foreach (var action in _registeredActions)
+            NativeMethods.UnregisterHotKey(_hwnd, HotkeyActions.HotkeyId(action));
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -82,12 +104,7 @@ public class HotkeyService : IDisposable
 
     public void Dispose()
     {
-        NativeMethods.UnregisterHotKey(_hwnd, NativeMethods.HOTKEY_TOGGLE_OVERLAY);
-        NativeMethods.UnregisterHotKey(_hwnd, NativeMethods.HOTKEY_NEW_TIMER);
-        NativeMethods.UnregisterHotKey(_hwnd, NativeMethods.HOTKEY_SELECT_REGION);
-        NativeMethods.UnregisterHotKey(_hwnd, NativeMethods.HOTKEY_TOGGLE_SCANNER);
-        NativeMethods.UnregisterHotKey(_hwnd, NativeMethods.HOTKEY_TOGGLE_INTERACTIVE);
-        NativeMethods.UnregisterHotKey(_hwnd, NativeMethods.HOTKEY_AUTO_DETECT);
+        UnregisterAll();
         _source?.RemoveHook(WndProc);
     }
 }

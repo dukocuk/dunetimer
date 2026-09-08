@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Windows.Input;
 
 namespace DuneTimer.Helpers;
 
@@ -10,14 +11,24 @@ internal static class NativeMethods
 
     public const uint MOD_ALT = 0x0001;
     public const uint MOD_CONTROL = 0x0002;
+    public const uint MOD_SHIFT = 0x0004;
     public const uint MOD_NOREPEAT = 0x4000;
 
+    // Default virtual-key codes — only used to seed HotkeyActions.Defaults()
+    // on first run / migration. Actual registration reads bindings from
+    // SettingsService, not these constants.
     public const uint VK_T = 0x54;
     public const uint VK_N = 0x4E;
     public const uint VK_R = 0x52;
     public const uint VK_S = 0x53;
     public const uint VK_X = 0x58;
     public const uint VK_D = 0x44;
+
+    public static string VirtualKeyToDisplayString(uint vk)
+    {
+        var key = KeyInterop.KeyFromVirtualKey((int)vk);
+        return key.ToString();
+    }
 
     public const int HOTKEY_TOGGLE_OVERLAY = 9001;
     public const int HOTKEY_NEW_TIMER = 9002;

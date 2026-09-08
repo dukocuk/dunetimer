@@ -146,6 +146,12 @@
                                 FontSize="10" Padding="8,2" Margin="0,0,6,0"
                                 BorderThickness="0"
                                 Cursor="Hand" />
+                        <Button Content="⚙" ToolTip="Settings (hotkeys &amp; alert sound)"
+                                Command="{Binding SettingsCommand}"
+                                Background="#333333" Foreground="White"
+                                FontSize="10" Padding="8,2" Margin="0,0,6,0"
+                                BorderThickness="0"
+                                Cursor="Hand" />
                         <Button Content="Auto-Detect"
                                 Command="{Binding AutoDetectCommand}"
                                 Background="#E94560" Foreground="White"

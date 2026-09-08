@@ -1,0 +1,89 @@
+<Window x:Class="DuneTimer.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:DuneTimer.Controls"
+        Title="Dune Timer — Settings"
+        Width="460" Height="560"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        Background="#1A1A2E"
+        ResizeMode="NoResize">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="CardBg" Color="#16213E" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#E94560" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#EAEAEA" />
+        <SolidColorBrush x:Key="TextMuted" Color="#666666" />
+        <SolidColorBrush x:Key="ErrorBrush" Color="#E94560" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="20">
+        <TextBlock Text="Hotkeys" Foreground="{StaticResource TextPrimary}"
+                   FontSize="15" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock Text="Click a box, then press a key combo (must include Alt, Ctrl, or Shift)."
+                   Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap" />
+
+        <ItemsControl ItemsSource="{Binding HotkeyRows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
+                                   Foreground="{StaticResource TextPrimary}"
+                                   FontSize="13" VerticalAlignment="Center" />
+                        <controls:HotkeyInputBox Grid.Column="1" BindingValue="{Binding Binding, Mode=TwoWay}" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Rectangle Height="1" Fill="#0F3460" Margin="0,14,0,16" />
+
+        <TextBlock Text="Alert sound" Foreground="{StaticResource TextPrimary}"
+                   FontSize="15" FontWeight="Bold" Margin="0,0,0,10" />
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{Binding SoundDisplayName}"
+                       Foreground="{StaticResource TextPrimary}" FontSize="13"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <Button Grid.Column="1" Content="Test" Command="{Binding TestSoundCommand}"
+                    Background="#333333" Foreground="White" Padding="12,6" Margin="6,0,0,0"
+                    BorderThickness="0" Cursor="Hand" />
+            <Button Grid.Column="2" Content="Browse…" Command="{Binding BrowseCommand}"
+                    Background="#333333" Foreground="White" Padding="12,6" Margin="6,0,0,0"
+                    BorderThickness="0" Cursor="Hand" />
+            <Button Grid.Column="3" Content="Reset" Command="{Binding ResetSoundCommand}"
+                    Background="#333333" Foreground="White" Padding="12,6" Margin="6,0,0,0"
+                    BorderThickness="0" Cursor="Hand" />
+        </Grid>
+
+        <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource ErrorBrush}"
+                   FontSize="12" Margin="0,16,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
+
+        <StackPanel Orientation="Horizontal" Margin="0,24,0,0" HorizontalAlignment="Center">
+            <Button Content="Save" Command="{Binding SaveCommand}"
+                    Background="{StaticResource AccentBrush}" Foreground="White"
+                    FontSize="14" Padding="24,10" Margin="0,0,12,0"
+                    BorderThickness="0" Cursor="Hand" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}"
+                    Background="#333333" Foreground="White"
+                    FontSize="14" Padding="24,10"
+                    BorderThickness="0" Cursor="Hand" />
+        </StackPanel>
+    </StackPanel>
+</Window>

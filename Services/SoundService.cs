@@ -6,19 +6,15 @@ namespace DuneTimer.Services;
 public class SoundService
 {
     private readonly SettingsService _settingsService;
-    private readonly SoundPlayer? _customPlayer;
+    private SoundPlayer? _customPlayer;
 
     public SoundService(SettingsService settingsService)
     {
         _settingsService = settingsService;
-
-        var soundPath = Path.Combine(AppContext.BaseDirectory, "Assets", "alert.wav");
-        if (File.Exists(soundPath))
-        {
-            _customPlayer = new SoundPlayer(soundPath);
-            _customPlayer.Load();
-        }
+        LoadSound();
     }
+
+    public static string DefaultSoundPath => Path.Combine(AppContext.BaseDirectory, "Assets", "alert.wav");
 
     public bool IsMuted => _settingsService.IsMuted;
 
@@ -32,5 +28,35 @@ public class SoundService
             _customPlayer.Play();
         else
             SystemSounds.Beep.Play();
+    }
+
+    // Called after the user picks a different sound (or resets to default)
+    // in Settings, so the next alert uses it without restarting the app.
+    public void ReloadSound() => LoadSound();
+
+    // Plays the given file immediately, ignoring mute — used by the Settings
+    // "Test" button so the user can preview a sound before saving it.
+    public void PreviewSound(string path)
+    {
+        if (!File.Exists(path)) return;
+        using var player = new SoundPlayer(path);
+        player.Play();
+    }
+
+    private void LoadSound()
+    {
+        var soundPath = _settingsService.AlertSoundPath;
+        if (string.IsNullOrEmpty(soundPath))
+            soundPath = DefaultSoundPath;
+
+        if (File.Exists(soundPath))
+        {
+            _customPlayer = new SoundPlayer(soundPath);
+            _customPlayer.Load();
+        }
+        else
+        {
+            _customPlayer = null;
+        }
     }
 }
