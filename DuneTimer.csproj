@@ -24,9 +24,10 @@
     <Content Include="Assets\alert.wav" Condition="Exists('Assets\alert.wav')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="tessdata\**\*.*">
+    <None Update="tessdata\eng.traineddata">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
