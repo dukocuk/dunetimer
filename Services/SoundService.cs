@@ -5,23 +5,32 @@ namespace DuneTimer.Services;
 
 public class SoundService
 {
-    private SoundPlayer? _player;
+    private readonly SettingsService _settingsService;
+    private readonly SoundPlayer? _customPlayer;
 
-    public SoundService()
+    public SoundService(SettingsService settingsService)
     {
+        _settingsService = settingsService;
+
         var soundPath = Path.Combine(AppContext.BaseDirectory, "Assets", "alert.wav");
         if (File.Exists(soundPath))
         {
-            _player = new SoundPlayer(soundPath);
-            _player.Load();
+            _customPlayer = new SoundPlayer(soundPath);
+            _customPlayer.Load();
         }
     }
 
+    public bool IsMuted => _settingsService.IsMuted;
+
+    public void ToggleMute() => _settingsService.IsMuted = !_settingsService.IsMuted;
+
     public void PlayAlert()
     {
-        if (_player is not null)
-            _player.Play();
+        if (_settingsService.IsMuted) return;
+
+        if (_customPlayer is not null)
+            _customPlayer.Play();
         else
-            SystemSounds.Exclamation.Play();
+            SystemSounds.Beep.Play();
     }
 }

@@ -7,6 +7,7 @@ namespace DuneTimer.Services;
 public class SettingsService
 {
     private readonly string _settingsPath;
+    private readonly object _regionsLock = new();
     private AppSettings _settings;
 
     public SettingsService()
@@ -15,37 +16,62 @@ public class SettingsService
         _settings = Load();
     }
 
+    // Returns a defensive copy — the scanner enumerates this from a background
+    // thread (OCR runs off the UI thread) while the UI thread can concurrently
+    // Add/Clear/Save regions (e.g. saving a manually-selected region). Handing
+    // out the live list would let one thread mutate it mid-enumeration on the
+    // other, which List<T> does not tolerate.
     public List<ScanRegion> GetScanRegions()
-        => _settings.ScanRegions;
+    {
+        lock (_regionsLock) return _settings.ScanRegions.ToList();
+    }
 
     public void SaveScanRegions(List<ScanRegion> regions)
     {
-        _settings.ScanRegions = regions;
-        Save();
+        lock (_regionsLock)
+        {
+            _settings.ScanRegions = regions;
+            Save();
+        }
     }
 
     public void AddScanRegion(ScanRegion region)
     {
-        _settings.ScanRegions.Add(region);
-        Save();
+        lock (_regionsLock)
+        {
+            _settings.ScanRegions.Add(region);
+            Save();
+        }
     }
 
     public void AddScanRegions(IEnumerable<ScanRegion> regions)
     {
-        _settings.ScanRegions.AddRange(regions);
-        Save();
+        lock (_regionsLock)
+        {
+            _settings.ScanRegions.AddRange(regions);
+            Save();
+        }
     }
 
     public void ClearScanRegions()
     {
-        _settings.ScanRegions.Clear();
-        Save();
+        lock (_regionsLock)
+        {
+            _settings.ScanRegions.Clear();
+            Save();
+        }
     }
 
     public bool AutoScanEnabled
     {
         get => _settings.AutoScanEnabled;
         set { _settings.AutoScanEnabled = value; Save(); }
+    }
+
+    public bool IsMuted
+    {
+        get => _settings.IsMuted;
+        set { _settings.IsMuted = value; Save(); }
     }
 
     private AppSettings Load()
@@ -102,5 +128,6 @@ public class AppSettings
 {
     public List<ScanRegion> ScanRegions { get; set; } = new();
     public bool AutoScanEnabled { get; set; } = false;
+    public bool IsMuted { get; set; } = false;
     public int SettingsVersion { get; set; } = 0;
 }

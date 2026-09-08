@@ -10,10 +10,14 @@ public class OverlayViewModel : ViewModelBase
 {
     private readonly TimerService _timerService;
     private readonly ScreenScannerService _scanner;
+    private readonly SoundService _soundService;
     private readonly DispatcherTimer _refreshTimer;
 
-    private string _scannerStatusText = "Scanner off — Alt+S to start";
-    private Brush _scannerStatusColor = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+    private static readonly Brush ScanningBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xC8, 0x53)); // Green
+    private static readonly Brush OffBrush = new SolidColorBrush(Color.FromRgb(0xE9, 0x45, 0x60)); // Red
+
+    private string _scannerStatusText = "Scanner off";
+    private Brush _scannerStatusColor = OffBrush;
     private bool _isInteractive;
 
     private static readonly Brush LockedHeaderBrush = new SolidColorBrush(Color.FromRgb(0xE9, 0x45, 0x60));
@@ -56,23 +60,25 @@ public class OverlayViewModel : ViewModelBase
         set => SetProperty(ref _scannerStatusColor, value);
     }
 
-    public OverlayViewModel(TimerService timerService, ScreenScannerService scanner)
+    public OverlayViewModel(TimerService timerService, ScreenScannerService scanner, SoundService soundService)
     {
         _timerService = timerService;
         _scanner = scanner;
+        _soundService = soundService;
 
         // Sync timers when collection changes
         _timerService.ActiveTimers.CollectionChanged += (_, _) => SyncTimers();
 
-        // Scanner state changes
-        _scanner.ScanningStateChanged += OnScanningStateChanged;
-        _scanner.LastScanTextChanged += text =>
-            ScannerStatusText = $"Scanner active — found: {TruncateText(text, 30)}";
-        _scanner.ScanError += error =>
-        {
-            ScannerStatusText = error;
-            ScannerStatusColor = new SolidColorBrush(Color.FromRgb(0xFF, 0xA0, 0x00)); // Yellow
-        };
+        // Status bar only ever shows the on/off scanning state. Everything else
+        // the scanner reports (OCR reads, auto-detect summaries, errors) goes
+        // to the console instead — those can fire from a background thread
+        // (OCR runs off the UI thread), but Console.WriteLine is thread-safe
+        // so no dispatcher marshaling is needed for them.
+        _scanner.ScanningStateChanged += isScanning =>
+            RunOnUiThread(() => OnScanningStateChanged(isScanning));
+        _scanner.LastScanTextChanged += text => Console.WriteLine($"[Scanner] OCR read: {TruncateText(text, 60)}");
+        _scanner.ScanInfo += info => Console.WriteLine($"[Scanner] {info}");
+        _scanner.ScanError += error => Console.WriteLine($"[Scanner] {error}");
 
         // Refresh display every 100ms for smooth countdown
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
@@ -84,35 +90,48 @@ public class OverlayViewModel : ViewModelBase
         _refreshTimer.Start();
 
         AutoDetectCommand = new DuneTimer.Helpers.RelayCommand(async _ => await _scanner.AutoDetectRegionsAsync());
+        MuteCommand = new DuneTimer.Helpers.RelayCommand(_ =>
+        {
+            _soundService.ToggleMute();
+            OnPropertyChanged(nameof(IsMuted));
+            OnPropertyChanged(nameof(MuteGlyph));
+            foreach (var vm in ActiveTimers)
+                vm.RefreshMute();
+        });
     }
 
     public System.Windows.Input.ICommand AutoDetectCommand { get; }
+    public System.Windows.Input.ICommand MuteCommand { get; }
 
-    public void UpdateScannerStatus(string message)
+    public bool IsMuted => _soundService.IsMuted;
+    public string MuteGlyph => IsMuted ? "🔇" : "🔊";
+
+    private void SetStatus(string text, Brush color)
     {
-        ScannerStatusText = message;
+        ScannerStatusText = text;
+        ScannerStatusColor = color;
+    }
+
+    private static void RunOnUiThread(Action action)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            action();
+        else
+            dispatcher.Invoke(action);
     }
 
     private void SyncTimers()
     {
         ActiveTimers.Clear();
         foreach (var timer in _timerService.ActiveTimers.OrderBy(t => t.Remaining))
-            ActiveTimers.Add(new TimerItemViewModel(timer));
+            ActiveTimers.Add(new TimerItemViewModel(timer, id => _timerService.RemoveTimer(id), _soundService));
         OnPropertyChanged(nameof(EmptyStateVisibility));
     }
 
     private void OnScanningStateChanged(bool isScanning)
     {
-        if (isScanning)
-        {
-            ScannerStatusText = "Scanner active — scanning...";
-            ScannerStatusColor = new SolidColorBrush(Color.FromRgb(0x00, 0xC8, 0x53)); // Green
-        }
-        else
-        {
-            ScannerStatusText = "Scanner off — Alt+S to start";
-            ScannerStatusColor = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)); // Gray
-        }
+        SetStatus(isScanning ? "Scanner active" : "Scanner off", isScanning ? ScanningBrush : OffBrush);
     }
 
     private static string TruncateText(string text, int maxLength)

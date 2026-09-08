@@ -17,6 +17,15 @@
         <SolidColorBrush x:Key="TextPrimary" Color="#EAEAEA" />
         <SolidColorBrush x:Key="TextMuted" Color="#666666" />
         <SolidColorBrush x:Key="ProgressTrack" Color="#0F3460" />
+
+        <Style x:Key="RowIconButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
     </Window.Resources>
 
     <Border Background="{StaticResource PanelBg}"
@@ -58,13 +67,30 @@
                             <Border Background="{StaticResource CardBg}"
                                     CornerRadius="8" Padding="10,8" Margin="0,3">
                                 <StackPanel>
-                                    <!-- Icon + Name -->
-                                    <TextBlock FontSize="12" FontFamily="Segoe UI"
-                                               Foreground="{StaticResource TextPrimary}">
-                                        <Run Text="{Binding Icon, Mode=OneWay}" />
-                                        <Run Text=" " />
-                                        <Run Text="{Binding Name, Mode=OneWay}" />
-                                    </TextBlock>
+                                    <!-- Icon + Name, mute/delete buttons -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" FontSize="12" FontFamily="Segoe UI"
+                                                   Foreground="{StaticResource TextPrimary}"
+                                                   VerticalAlignment="Center">
+                                            <Run Text="{Binding Icon, Mode=OneWay}" />
+                                            <Run Text=" " />
+                                            <Run Text="{Binding Name, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <Button Grid.Column="1" Content="{Binding MuteGlyph, Mode=OneWay}"
+                                                Command="{Binding ToggleMuteCommand}"
+                                                IsEnabled="{Binding CanToggleMute, Mode=OneWay}"
+                                                Style="{StaticResource RowIconButton}"
+                                                ToolTip="Mute/unmute this timer" />
+                                        <Button Grid.Column="2" Content="✕"
+                                                Command="{Binding DeleteCommand}"
+                                                Style="{StaticResource RowIconButton}"
+                                                ToolTip="Remove this timer" />
+                                    </Grid>
 
                                     <!-- Countdown -->
                                     <TextBlock Text="{Binding FormattedRemaining, Mode=OneWay}"
@@ -112,13 +138,21 @@
                                    VerticalAlignment="Center" />
                     </StackPanel>
                     
-                    <Button Content="Auto-Detect"
-                            Command="{Binding AutoDetectCommand}"
-                            Background="#E94560" Foreground="White"
-                            FontSize="10" Padding="8,2"
-                            BorderThickness="0"
-                            HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Cursor="Hand" />
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Content="{Binding MuteGlyph}" ToolTip="Mute/unmute all alerts"
+                                Command="{Binding MuteCommand}"
+                                Background="#333333" Foreground="White"
+                                FontSize="10" Padding="8,2" Margin="0,0,6,0"
+                                BorderThickness="0"
+                                Cursor="Hand" />
+                        <Button Content="Auto-Detect"
+                                Command="{Binding AutoDetectCommand}"
+                                Background="#E94560" Foreground="White"
+                                FontSize="10" Padding="8,2"
+                                BorderThickness="0"
+                                Cursor="Hand" />
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>

@@ -30,18 +30,22 @@ public partial class App : Application
         // Initialize services
         _timerService = new TimerService();
         _recipeService = new RecipeService();
-        _soundService = new SoundService();
         _hotkeyService = new HotkeyService();
         _settingsService = new SettingsService();
+        _soundService = new SoundService(_settingsService);
 
         var textParser = new TextParserService(_recipeService);
         _scanner = new ScreenScannerService(textParser, _timerService, _settingsService);
 
-        // Play alert on timer completion
-        _timerService.TimerCompleted += _ => _soundService!.PlayAlert();
+        // Play alert on timer completion, unless that entry was muted
+        _timerService.TimerCompleted += timer =>
+        {
+            if (!timer.IsMuted)
+                _soundService!.PlayAlert();
+        };
 
         // Create overlay
-        _overlayVm = new OverlayViewModel(_timerService, _scanner);
+        _overlayVm = new OverlayViewModel(_timerService, _scanner, _soundService);
         _overlay = new OverlayWindow
         {
             DataContext = _overlayVm
@@ -135,6 +139,13 @@ public partial class App : Application
         if (wasVisible)
             _overlay.Hide();
 
+        // Pause the scanner so no periodic scan tick can run concurrently with
+        // the dialog or with the Clear/Add below — ShowDialog still pumps the
+        // dispatcher, so a tick would otherwise fire while the user selects.
+        bool wasScanning = _scanner!.IsScanning;
+        if (wasScanning)
+            _scanner.StopScanning();
+
         var selector = new RegionSelectorWindow();
         var result = selector.ShowDialog();
 
@@ -144,9 +155,10 @@ public partial class App : Application
             _settingsService.ClearScanRegions();
             _settingsService.AddScanRegion(selector.SelectedRegion);
             _timerService!.DetachTimersForRegions(oldIds);
-            _overlayVm!.UpdateScannerStatus(
-                $"Region saved ({selector.SelectedRegion.Width}x{selector.SelectedRegion.Height}). Alt+S to scan.");
         }
+
+        if (wasScanning)
+            _scanner.StartScanning();
 
         if (wasVisible)
             _overlay.Show();

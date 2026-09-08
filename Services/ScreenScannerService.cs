@@ -12,6 +12,7 @@ public class ScreenScannerService : IDisposable
 {
     private const double OverlapMergeThreshold = 0.5;
     private const int ProbationMissLimit = 10; // ~20s at the 2s tick interval; only applies to a region that has NEVER matched
+    private const string OcrEngineFailedMessage = "OCR Engine failed to load. Check tessdata.";
 
     private readonly TextParserService _parser;
     private readonly TimerService _timerService;
@@ -39,6 +40,7 @@ public class ScreenScannerService : IDisposable
         get => _isScanning;
         private set
         {
+            if (_isScanning == value) return;
             _isScanning = value;
             ScanningStateChanged?.Invoke(value);
         }
@@ -46,6 +48,7 @@ public class ScreenScannerService : IDisposable
 
     public event Action<bool>? ScanningStateChanged;
     public event Action<string>? LastScanTextChanged;
+    public event Action<string>? ScanInfo;
     public event Action<string>? ScanError;
 
     public ScreenScannerService(
@@ -89,7 +92,7 @@ public class ScreenScannerService : IDisposable
 
         if (_engine is null)
         {
-            ScanError?.Invoke("OCR Engine failed to load. Check tessdata.");
+            ScanError?.Invoke(OcrEngineFailedMessage);
             return;
         }
 
@@ -113,19 +116,19 @@ public class ScreenScannerService : IDisposable
     {
         if (_engine is null)
         {
-            ScanError?.Invoke("OCR Engine failed to load. Check tessdata.");
+            ScanError?.Invoke(OcrEngineFailedMessage);
             return;
         }
 
         if (_isAutoDetecting)
         {
-            ScanError?.Invoke("Auto-detect already running...");
+            ScanInfo?.Invoke("Auto-detect already running...");
             return;
         }
 
         if (_isTicking)
         {
-            ScanError?.Invoke("Scanner busy — try Auto-Detect again in a moment.");
+            ScanInfo?.Invoke("Scanner busy — try Auto-Detect again in a moment.");
             return;
         }
 
@@ -139,7 +142,7 @@ public class ScreenScannerService : IDisposable
             .ToHashSet();
         if (Enum.GetValues<AnchorKind>().All(k => trackedKinds.Contains(k.ToString())))
         {
-            ScanError?.Invoke("Already tracking every known panel type — nothing new to detect.");
+            ScanInfo?.Invoke("Already tracking every known panel type — nothing new to detect.");
             if (!IsScanning) StartScanning();
             return;
         }
@@ -147,11 +150,17 @@ public class ScreenScannerService : IDisposable
         _isAutoDetecting = true;
         bool wasScanning = IsScanning;
         _scanTimer.Stop(); // raw stop, not StopScanning() — avoids flipping IsScanning/UI status just for this pass
-        ScanError?.Invoke("Auto-detecting timers...");
 
         // Captured before the try so `finally` knows whether to restore it
         // even if something below throws before the hide actually happens.
         bool overlayWasVisible = IsOverlayVisible?.Invoke() ?? false;
+
+        // Set inside the try, but only invoked as a ScanInfo event after the
+        // finally below finishes restarting the scanner — that restart fires
+        // its own ScanningStateChanged status text, so invoking the summary
+        // afterward guarantees it's the last word instead of getting
+        // immediately stomped by "Scanner active — scanning...".
+        string? summary = null;
 
         try
         {
@@ -189,10 +198,9 @@ public class ScreenScannerService : IDisposable
                 _regionState[regionId] = (Misses: 0, EverMatched: true, LastName: name);
             }
 
-            string summary = result.Found == 0 ? "No timers found on screen."
+            summary = result.Found == 0 ? "No timers found on screen."
                 : result.Accepted.Count == 0 ? $"Found {result.Found} timer(s) — all already tracked."
                 : $"Found {result.Accepted.Count} new timer region(s), added {result.Timers.Count} timer(s).";
-            ScanError?.Invoke(summary);
         }
         finally
         {
@@ -204,6 +212,8 @@ public class ScreenScannerService : IDisposable
                 else StartScanning();
             }
         }
+
+        if (summary is not null) ScanInfo?.Invoke(summary);
     }
 
     private (int Found, List<ScanRegion> Accepted,
