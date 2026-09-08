@@ -1,26 +1,65 @@
 {
   "categories": {
     "Water Processing": [
-      {"name": "Fremen Deathstill (Basic)", "duration": 3600, "icon": "💧"},
-      {"name": "Advanced Fremen Deathstill", "duration": 3000, "icon": "💧"},
-      {"name": "Windtrap Water Extraction", "duration": 1800, "icon": "💧"}
+      {"name": "Fremen Deathstill", "duration": 3600, "icon": "💧"},
+      {"name": "Advanced Fremen Deathstill", "duration": 3000, "icon": "💧"}
     ],
-    "Ore Refining": [
+    "Small Ore Refinery": [
+      {"name": "Copper Ingot", "duration": 5, "icon": "🔶"},
+      {"name": "Iron Ingot", "duration": 10, "icon": "⬛"},
+      {"name": "Steel Ingot", "duration": 5, "icon": "🔩"},
+      {"name": "Plastone (x200)", "duration": 15, "icon": "🟤"}
+    ],
+    "Medium Ore Refinery": [
+      {"name": "Copper Ingot", "duration": 4, "icon": "🔶"},
+      {"name": "Iron Ingot", "duration": 7, "icon": "⬛"},
+      {"name": "Steel Ingot", "duration": 4, "icon": "🔩"},
+      {"name": "Aluminum Ingot", "duration": 30, "icon": "⬜"},
+      {"name": "Duraluminum Ingot", "duration": 5, "icon": "⚙️"},
+      {"name": "Plastanium Ingot", "duration": 30, "icon": "🟣"},
+      {"name": "Plastone (x250)", "duration": 10, "icon": "🟤"}
+    ],
+    "Large Ore Refinery": [
       {"name": "Copper Ingot", "duration": 3, "icon": "🔶"},
       {"name": "Iron Ingot", "duration": 5, "icon": "⬛"},
-      {"name": "Aluminum Ingot", "duration": 20, "icon": "⬜"},
       {"name": "Steel Ingot", "duration": 3, "icon": "🔩"},
+      {"name": "Aluminum Ingot", "duration": 20, "icon": "⬜"},
+      {"name": "Duraluminum Ingot", "duration": 4, "icon": "⚙️"},
       {"name": "Plastanium Ingot", "duration": 20, "icon": "🟣"},
-      {"name": "Plastone", "duration": 5, "icon": "🟤"}
+      {"name": "Plastone (x250)", "duration": 5, "icon": "🟤"}
+    ],
+    "Small Chemical Refinery": [
+      {"name": "Cobalt Paste", "duration": 15, "icon": "🔷"},
+      {"name": "Silicone Block", "duration": 15, "icon": "🧱"},
+      {"name": "Small Vehicle Fuel Cell", "duration": 15, "icon": "⛽"},
+      {"name": "Medium Vehicle Fuel Cell", "duration": 20, "icon": "⛽"},
+      {"name": "Low-grade Lubricant", "duration": 20, "icon": "🛢️"},
+      {"name": "Industrial-grade Lubricant (x10)", "duration": 40, "icon": "🛢️"}
+    ],
+    "Medium Chemical Refinery": [
+      {"name": "Cobalt Paste", "duration": 10, "icon": "🔷"},
+      {"name": "Silicone Block", "duration": 10, "icon": "🧱"},
+      {"name": "Stravidium Fiber", "duration": 10, "icon": "🧵"},
+      {"name": "Small Vehicle Fuel Cell", "duration": 10, "icon": "⛽"},
+      {"name": "Medium Vehicle Fuel Cell", "duration": 15, "icon": "⛽"},
+      {"name": "Large Vehicle Fuel Cell", "duration": 15, "icon": "⛽"},
+      {"name": "Low-grade Lubricant", "duration": 15, "icon": "🛢️"},
+      {"name": "Industrial-grade Lubricant (x10)", "duration": 30, "icon": "🛢️"},
+      {"name": "Spice-infused Fuel Cell (x10)", "duration": 30, "icon": "⛽"}
     ],
     "Advanced Crafting": [
       {"name": "Composite Plating", "duration": 45, "icon": "🛡️"},
       {"name": "Circuit Board", "duration": 30, "icon": "⚡"},
       {"name": "Explosives", "duration": 60, "icon": "💥"}
     ],
-    "Spice Processing": [
-      {"name": "Spice Refining", "duration": 120, "icon": "🟠"},
-      {"name": "Spice Essence", "duration": 300, "icon": "✨"}
+    "Spice Refinery": [
+      {"name": "Spice Melange", "duration": 180, "icon": "🟠"}
+    ],
+    "Medium Spice Refinery": [
+      {"name": "Spice Melange (x10)", "duration": 450, "icon": "🟠"}
+    ],
+    "Large Spice Refinery": [
+      {"name": "Spice Melange (x200)", "duration": 2700, "icon": "🟠"}
     ]
   }
 }
