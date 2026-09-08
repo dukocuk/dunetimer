@@ -1,0 +1,99 @@
+<Window x:Class="DuneTimer.Views.ControlPanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Dune Timer — Add Timer"
+        Width="420" Height="540"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        Background="#1A1A2E"
+        ResizeMode="NoResize">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="CardBg" Color="#16213E" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#E94560" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#EAEAEA" />
+        <SolidColorBrush x:Key="TextMuted" Color="#666666" />
+
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="20">
+        <!-- Category selector -->
+        <TextBlock Text="Category" Foreground="{StaticResource TextPrimary}"
+                   FontSize="13" Margin="0,0,0,6" />
+        <ComboBox ItemsSource="{Binding Categories}"
+                  SelectedItem="{Binding SelectedCategory}"
+                  DisplayMemberPath="Name"
+                  FontSize="13" />
+
+        <!-- Recipe list -->
+        <TextBlock Text="Recipe" Foreground="{StaticResource TextPrimary}"
+                   FontSize="13" Margin="0,16,0,6" />
+        <ListBox ItemsSource="{Binding Recipes}"
+                 SelectedItem="{Binding SelectedRecipe}"
+                 DisplayMemberPath="DisplayText"
+                 Background="{StaticResource CardBg}"
+                 Foreground="{StaticResource TextPrimary}"
+                 Height="160" FontSize="13"
+                 BorderBrush="#0F3460" BorderThickness="1" />
+
+        <!-- Quantity -->
+        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+            <TextBlock Text="Quantity:" Foreground="{StaticResource TextPrimary}"
+                       FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <TextBox Text="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
+                     Width="60" FontSize="13"
+                     Background="{StaticResource CardBg}"
+                     Foreground="{StaticResource TextPrimary}"
+                     BorderBrush="#0F3460" Padding="4,2" />
+        </StackPanel>
+
+        <!-- Divider -->
+        <TextBlock Text="— OR Custom Timer —" Foreground="{StaticResource TextMuted}"
+                   FontSize="12" TextAlignment="Center" Margin="0,20,0,10" />
+
+        <!-- Custom timer -->
+        <StackPanel Orientation="Horizontal">
+            <TextBlock Text="Name:" Foreground="{StaticResource TextPrimary}"
+                       FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBox Text="{Binding CustomName, UpdateSourceTrigger=PropertyChanged}"
+                     Width="120" FontSize="13"
+                     Background="{StaticResource CardBg}"
+                     Foreground="{StaticResource TextPrimary}"
+                     BorderBrush="#0F3460" Padding="4,2" Margin="0,0,12,0" />
+            <TextBlock Text="Min:" Foreground="{StaticResource TextPrimary}"
+                       FontSize="13" VerticalAlignment="Center" Margin="0,0,4,0" />
+            <TextBox Text="{Binding CustomMinutes, UpdateSourceTrigger=PropertyChanged}"
+                     Width="50" FontSize="13"
+                     Background="{StaticResource CardBg}"
+                     Foreground="{StaticResource TextPrimary}"
+                     BorderBrush="#0F3460" Padding="4,2" Margin="0,0,10,0" />
+            <TextBlock Text="Sec:" Foreground="{StaticResource TextPrimary}"
+                       FontSize="13" VerticalAlignment="Center" Margin="0,0,4,0" />
+            <TextBox Text="{Binding CustomSeconds, UpdateSourceTrigger=PropertyChanged}"
+                     Width="50" FontSize="13"
+                     Background="{StaticResource CardBg}"
+                     Foreground="{StaticResource TextPrimary}"
+                     BorderBrush="#0F3460" Padding="4,2" />
+        </StackPanel>
+
+        <!-- Buttons -->
+        <StackPanel Orientation="Horizontal" Margin="0,24,0,0"
+                    HorizontalAlignment="Center">
+            <Button Content="▶ Start Timer"
+                    Command="{Binding StartTimerCommand}"
+                    Background="{StaticResource AccentBrush}"
+                    Foreground="White" FontSize="14" FontFamily="Segoe UI"
+                    Padding="24,10" Margin="0,0,12,0"
+                    BorderThickness="0" Cursor="Hand" />
+            <Button Content="Cancel"
+                    Click="Cancel_Click"
+                    Background="#333333" Foreground="White"
+                    FontSize="14" FontFamily="Segoe UI"
+                    Padding="24,10"
+                    BorderThickness="0" Cursor="Hand" />
+        </StackPanel>
+    </StackPanel>
+</Window>

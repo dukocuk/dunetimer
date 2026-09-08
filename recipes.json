@@ -1,0 +1,26 @@
+{
+  "categories": {
+    "Water Processing": [
+      {"name": "Fremen Deathstill (Basic)", "duration": 3600, "icon": "💧"},
+      {"name": "Advanced Fremen Deathstill", "duration": 3000, "icon": "💧"},
+      {"name": "Windtrap Water Extraction", "duration": 1800, "icon": "💧"}
+    ],
+    "Ore Refining": [
+      {"name": "Copper Ingot", "duration": 3, "icon": "🔶"},
+      {"name": "Iron Ingot", "duration": 5, "icon": "⬛"},
+      {"name": "Aluminum Ingot", "duration": 20, "icon": "⬜"},
+      {"name": "Steel Ingot", "duration": 3, "icon": "🔩"},
+      {"name": "Plastanium Ingot", "duration": 20, "icon": "🟣"},
+      {"name": "Plastone", "duration": 5, "icon": "🟤"}
+    ],
+    "Advanced Crafting": [
+      {"name": "Composite Plating", "duration": 45, "icon": "🛡️"},
+      {"name": "Circuit Board", "duration": 30, "icon": "⚡"},
+      {"name": "Explosives", "duration": 60, "icon": "💥"}
+    ],
+    "Spice Processing": [
+      {"name": "Spice Refining", "duration": 120, "icon": "🟠"},
+      {"name": "Spice Essence", "duration": 300, "icon": "✨"}
+    ]
+  }
+}

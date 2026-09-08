@@ -1,0 +1,17 @@
+{
+  "stations": [
+    "Small Ore Refinery",
+    "Medium Ore Refinery",
+    "Large Ore Refinery",
+    "Small Chemical Refinery",
+    "Medium Chemical Refinery",
+    "Spice Refinery",
+    "Medium Spice Refinery",
+    "Large Spice Refinery",
+    "Deathstill",
+    "Fremen Deathstill",
+    "Advanced Fremen Deathstill",
+    "Blood Purifier",
+    "Improved Blood Purifier"
+  ]
+}
