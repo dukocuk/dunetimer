@@ -3,6 +3,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\DuneTimer.ico</ApplicationIcon>
     <AssemblyName>DuneTimer</AssemblyName>
     <RootNamespace>DuneTimer</RootNamespace>
     <Version>1.0.0</Version>
@@ -13,6 +15,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UseWindowsForms auto-adds a global "using System.Windows.Forms;" that
+         collides with WPF's own global "using System.Windows;" across the
+         whole project (Application, Brush, Point, Rectangle, etc.). Only
+         Services\TrayIconService.cs needs System.Windows.Forms, and it
+         brings its own file-scoped using for that. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Update="recipes.json">
@@ -31,7 +43,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Drawing.Common" Version="10.0.11" />
+    <!-- UseWindowsForms now supplies System.Drawing.Common from the in-box
+         Windows Desktop shared framework; the explicit package reference
+         pulled in a mismatched (net10-targeted) build that crashed WinForms
+         controls at runtime with a System.Private.Windows.Core TypeLoadException. -->
     <PackageReference Include="Tesseract" Version="5.2.0" />
   </ItemGroup>
 </Project>

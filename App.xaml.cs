@@ -18,6 +18,7 @@ public partial class App : Application
     private HotkeyService? _hotkeyService;
     private ScreenScannerService? _scanner;
     private SettingsService? _settingsService;
+    private TrayIconService? _trayIconService;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -34,6 +35,7 @@ public partial class App : Application
         _hotkeyService = new HotkeyService();
         _settingsService = new SettingsService();
         _soundService = new SoundService(_settingsService);
+        _trayIconService = new TrayIconService();
 
         var textParser = new TextParserService(_recipeService);
         _scanner = new ScreenScannerService(textParser, _timerService, _settingsService);
@@ -60,6 +62,11 @@ public partial class App : Application
         _scanner.HideOverlay = () => _overlay.Hide();
         _scanner.ShowOverlay = () => _overlay.Show();
         _scanner.GetOverlayBounds = GetOverlayPhysicalRect;
+
+        _trayIconService.IsOverlayVisible = () => _overlay.IsVisible;
+        _trayIconService.ToggleOverlayRequested += ToggleOverlay;
+        _trayIconService.OpenSettingsRequested += ShowSettings;
+        _trayIconService.ExitRequested += Shutdown;
 
         // Register global hotkeys after window handle is available
         _overlay.SourceInitialized += (_, _) =>
@@ -187,6 +194,7 @@ public partial class App : Application
     {
         _hotkeyService?.Dispose();
         _scanner?.Dispose();
+        _trayIconService?.Dispose();
         base.OnExit(e);
     }
 }
