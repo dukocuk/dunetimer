@@ -7,7 +7,7 @@
     <ApplicationIcon>Assets\DuneTimer.ico</ApplicationIcon>
     <AssemblyName>DuneTimer</AssemblyName>
     <RootNamespace>DuneTimer</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -55,9 +55,12 @@
        so single-file publish never picks them up as bundle-worthy natives and they
        silently vanish from the publish output, breaking OCR with no visible error. -->
   <Target Name="CopyNativeTesseractLibsToPublishDir" AfterTargets="Publish">
+    <Error Condition="'$(PkgTesseract)' == ''" Text="Tesseract package path not resolved; check GeneratePathProperty on the Tesseract PackageReference." />
     <ItemGroup>
       <TesseractNativeLibs Include="$(PkgTesseract)\x64\*.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(TesseractNativeLibs)" DestinationFolder="$(PublishDir)x64\" />
+    <Error Condition="!Exists('$(PublishDir)x64\tesseract50.dll')" Text="tesseract50.dll missing from publish output after copy." />
+    <Error Condition="!Exists('$(PublishDir)tessdata\eng.traineddata')" Text="tessdata\eng.traineddata missing from publish output." />
   </Target>
 </Project>

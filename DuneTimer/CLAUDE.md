@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - Build: `dotnet build DuneTimer.csproj`
 - Run: `dotnet run --project DuneTimer.csproj` (run from a terminal — see console note below)
-- Publish: `dotnet publish -c Release -r win-x64` (csproj already pins `PublishSingleFile`, `SelfContained=false`, `IncludeNativeLibrariesForSelfExtract`)
+- Publish: `dotnet publish -c Release -r win-x64` (csproj already pins `PublishSingleFile`, `SelfContained=true`, `IncludeNativeLibrariesForSelfExtract`)
 - No test project exists in the solution — there is nothing to run for tests.
 - `DuneTimer.sln` lives one directory above this repo root (`..\DuneTimer.sln`). It references this single project, but it isn't tracked in this git repo, so day-to-day commands should target `DuneTimer.csproj` directly.
 - Windows-only target (`net9.0-windows10.0.19041.0`, WPF, Win32 interop) — cannot build or run on non-Windows.
