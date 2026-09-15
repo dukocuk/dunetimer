@@ -19,7 +19,6 @@ internal static class NativeMethods
     // SettingsService, not these constants.
     public const uint VK_T = 0x54;
     public const uint VK_N = 0x4E;
-    public const uint VK_R = 0x52;
     public const uint VK_S = 0x53;
     public const uint VK_X = 0x58;
     public const uint VK_D = 0x44;
@@ -32,7 +31,6 @@ internal static class NativeMethods
 
     public const int HOTKEY_TOGGLE_OVERLAY = 9001;
     public const int HOTKEY_NEW_TIMER = 9002;
-    public const int HOTKEY_SELECT_REGION = 9003;
     public const int HOTKEY_TOGGLE_SCANNER = 9004;
     public const int HOTKEY_TOGGLE_INTERACTIVE = 9005;
     public const int HOTKEY_AUTO_DETECT = 9006;

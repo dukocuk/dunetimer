@@ -3,13 +3,36 @@ using DuneTimer.Models;
 
 namespace DuneTimer.Services;
 
-public enum AnchorKind { Queue, ExtractionTime }
+public enum AnchorKind { Queue, ExtractionTime, ProcessingCapacity }
 
 public partial class TextParserService
 {
     private readonly RecipeService _recipeService;
-    private List<Recipe> _allRecipes = [];
     private List<string> _stationNames = [];
+
+    // Processing rate is never OCR'd — confirmed by direct testing that the
+    // "PROCESSING RATE"/"X ml/s" line fails to OCR at all (not even garbled)
+    // across every attempt, unlike the capacity value beside it which reads
+    // cleanly every time. It's a fixed stat of the building tier, not
+    // something that changes at runtime, so it's hardcoded here instead.
+    private static readonly Dictionary<string, double> ProcessingRatesMlPerSec = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Blood Purifier"] = 5,
+        ["Improved Blood Purifier"] = 8,
+    };
+
+    // Also used as a sanity ceiling in ResolveCapacityTimer: OCR occasionally
+    // misreads the total line's leading '/' as a stray digit (e.g. "/ 24,000 ml"
+    // becomes "724,000 ml"), which then looks like a perfectly valid bare
+    // value line. A corrupted total is always at/near this max, while a
+    // genuine draining current-value never reaches it, so any candidate >=
+    // max gets rejected as a probable corrupted-total read instead of
+    // producing a wildly-wrong multi-hour timer.
+    private static readonly Dictionary<string, double> ProcessingMaxCapacityMl = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Blood Purifier"] = 6000,
+        ["Improved Blood Purifier"] = 24000,
+    };
 
     // Matches 01:23:45 or 45:30
     [GeneratedRegex(@"\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b", RegexOptions.Compiled)]
@@ -28,6 +51,25 @@ public partial class TextParserService
     [GeneratedRegex(@"\bEXTRACTION\b", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
     private static partial Regex ExtractionAnchorPattern();
 
+    // "PROCESSING" alone (like "EXTRACTION" above) — never appears in the
+    // sibling WATER CAPACITY / CIRCUIT CAPACITY labels on the same panel.
+    // Deliberately case-SENSITIVE (no IgnoreCase): confirmed via live testing
+    // that Deathstill has its own unrelated "STATUS: Processing" value field,
+    // OCR'd in mixed/title case, which false-matched this anchor when it was
+    // case-insensitive and caused the resolver to run on the wrong panel. The
+    // real "PROCESSING CAPACITY" label always OCRs as literal all-caps, like
+    // every other anchor label in this UI (QUEUE, EXTRACTION).
+    [GeneratedRegex(@"\bPROCESSING\b", RegexOptions.Compiled)]
+    private static partial Regex ProcessingCapacityAnchorPattern();
+
+    // A bare "<digits,with,commas> ml" line — the current capacity value.
+    // Deliberately anchored start-to-end so it doesn't match the total line
+    // beneath it ("/ 24,000 ml"), which callers primarily exclude by its
+    // leading '/' (see ProcessingMaxCapacityMl for the backstop when that
+    // slash itself gets OCR'd into a digit).
+    [GeneratedRegex(@"^([\d,]+)\s*ml$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex CapacityValuePattern();
+
     public TextParserService(RecipeService recipeService)
     {
         _recipeService = recipeService;
@@ -36,9 +78,6 @@ public partial class TextParserService
 
     public void RefreshRecipes()
     {
-        _allRecipes = _recipeService.LoadRecipes()
-            .SelectMany(c => c.Recipes)
-            .ToList();
         // Longest-first so a more specific name (e.g. "Medium Ore Refinery")
         // wins over a shorter one that could also match (e.g. "Ore Refinery").
         _stationNames = _recipeService.LoadStationNames()
@@ -50,6 +89,7 @@ public partial class TextParserService
     {
         if (QueueAnchorPattern().IsMatch(line)) return AnchorKind.Queue;
         if (ExtractionAnchorPattern().IsMatch(line)) return AnchorKind.ExtractionTime;
+        if (ProcessingCapacityAnchorPattern().IsMatch(line)) return AnchorKind.ProcessingCapacity;
         return null;
     }
 
@@ -115,54 +155,79 @@ public partial class TextParserService
         return (fallback, seconds);
     }
 
-    public List<(string Name, int Seconds, string Icon)> ParseCraftingText(string ocrText)
+    // Blood Purifier-style panels never display a countdown — only a
+    // draining "processing capacity" value and a rate that reliably fails to
+    // OCR (see ProcessingRatesMlPerSec). So instead of extracting a time
+    // directly like ResolveAnchoredTimer, this reads the capacity value and
+    // computes time-remaining from the hardcoded rate for whichever known
+    // station name is present. There's no generic-literal fallback like
+    // ResolveAnchoredTimer has: without a resolved name there's no way to
+    // know which rate applies, so an unresolved name just yields no timer.
+    public (string Name, int Seconds)? ResolveCapacityTimer(
+        IReadOnlyList<(int X, int Y, int W, int H, string Text)> lines)
     {
-        var results = new List<(string, int, string)>();
-        var lines = ocrText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-        for (int i = 0; i < lines.Length; i++)
+        int anchorIndex = -1;
+        for (int i = 0; i < lines.Count; i++)
         {
-            var trimmed = lines[i].Trim();
-            
-            // Extract time
-            int seconds = TryExtractTime(trimmed, out int matchIndex);
-            if (seconds <= 0) continue;
-
-            // Try to match a recipe name in this line or the previous line
-            var matchedRecipe = FindBestRecipeMatch(trimmed);
-            if (matchedRecipe is null && i > 0)
-                matchedRecipe = FindBestRecipeMatch(lines[i - 1].Trim());
-
-            if (matchedRecipe is not null)
+            if (MatchAnchor(lines[i].Text) == AnchorKind.ProcessingCapacity)
             {
-                results.Add((matchedRecipe.Name, seconds, matchedRecipe.Icon));
-            }
-            else
-            {
-                // Fallback: use text before the time as the name
-                string nameCandidate = "";
-                if (matchIndex > 0)
-                {
-                    nameCandidate = trimmed[..matchIndex].Trim().TrimEnd('-', '\u2014', ':', '|', ' ');
-                }
-                
-                if (nameCandidate.Length < 3 && i > 0)
-                {
-                    nameCandidate = lines[i - 1].Trim();
-                }
-
-                if (nameCandidate.Length > 2)
-                    results.Add((nameCandidate, seconds, "⏱️"));
+                anchorIndex = i;
+                break;
             }
         }
+        if (anchorIndex < 0) return null;
+        var anchor = lines[anchorIndex];
 
-        return results;
+        // Resolve the station name first (not the value) so the max-capacity
+        // sanity check below can use the right ceiling for this station —
+        // there's no generic-literal fallback here, since without a name
+        // there's no rate/max to compute against.
+        string? station = null;
+        double rate = 0, maxMl = 0;
+        foreach (var candidate in _stationNames)
+        {
+            if (!ProcessingRatesMlPerSec.TryGetValue(candidate, out rate)) continue;
+            if (!lines.Any(l => l.Text.Contains(candidate, StringComparison.OrdinalIgnoreCase))) continue;
+            station = candidate;
+            maxMl = ProcessingMaxCapacityMl[candidate];
+            break;
+        }
+        if (station is null) return null;
+
+        // Same column-restriction rationale as ResolveAnchoredTimer: this
+        // region is full screen width, so an unrestricted scan could land on
+        // WATER CAPACITY's value at a similar height instead.
+        var column = lines.Where(l => Math.Abs(l.X - anchor.X) < 250).OrderBy(l => l.Y).ToList();
+        int anchorColIndex = column.FindIndex(l => MatchAnchor(l.Text) == AnchorKind.ProcessingCapacity);
+
+        double? currentMl = null;
+        for (int i = anchorColIndex; i >= 0 && i < column.Count && i < anchorColIndex + 6; i++)
+        {
+            var text = column[i].Text.Trim();
+            if (text.Contains('/')) continue; // the total line ("/ 24,000 ml"), not the current value
+            var match = CapacityValuePattern().Match(text);
+            if (!match.Success) continue;
+
+            var value = double.Parse(match.Groups[1].Value.Replace(",", ""));
+            // A corrupted total line (leading '/' OCR'd into a stray digit,
+            // e.g. "724,000 ml") looks identical to a valid bare value line
+            // once the slash is gone — reject anything at/above the known
+            // max instead of accepting it as a plausible current reading.
+            if (value >= maxMl) continue;
+
+            currentMl = value;
+            break;
+        }
+        if (currentMl is not { } ml || ml <= 0) return null;
+
+        int seconds = (int)Math.Round(ml / rate);
+        return seconds > 0 ? (station, seconds) : null;
     }
 
     public static int TryExtractTime(string text, out int matchIndex)
     {
         matchIndex = -1;
-        
+
         var colonMatch = ColonTimePattern().Match(text);
         if (colonMatch.Success)
         {
@@ -177,37 +242,16 @@ public partial class TextParserService
         foreach (Match m in letterMatches)
         {
             if (m.Value.Trim().Length == 0) continue;
-            
+
             matchIndex = m.Index;
             int h = m.Groups[1].Success ? int.Parse(m.Groups[1].Value) : 0;
             int mins = m.Groups[2].Success ? int.Parse(m.Groups[2].Value) : 0;
             int secs = m.Groups[3].Success ? int.Parse(m.Groups[3].Value) : 0;
-            
+
             int total = h * 3600 + mins * 60 + secs;
             if (total > 0) return total;
         }
 
         return 0;
-    }
-
-    private Recipe? FindBestRecipeMatch(string text)
-    {
-        var normalized = text.ToLowerInvariant();
-
-        foreach (var recipe in _allRecipes)
-        {
-            if (normalized.Contains(recipe.Name.ToLowerInvariant()))
-                return recipe;
-        }
-
-        foreach (var recipe in _allRecipes)
-        {
-            var words = recipe.Name.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            int matchCount = words.Count(w => normalized.Contains(w));
-            if (words.Length > 0 && (double)matchCount / words.Length > 0.7)
-                return recipe;
-        }
-
-        return null;
     }
 }

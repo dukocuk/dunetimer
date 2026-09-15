@@ -47,6 +47,17 @@
          Windows Desktop shared framework; the explicit package reference
          pulled in a mismatched (net10-targeted) build that crashed WinForms
          controls at runtime with a System.Private.Windows.Core TypeLoadException. -->
-    <PackageReference Include="Tesseract" Version="5.2.0" />
+    <PackageReference Include="Tesseract" Version="5.2.0" GeneratePathProperty="true" />
   </ItemGroup>
+
+  <!-- Tesseract ships its native libs via a legacy build\Tesseract.targets copy
+       (x64\*.dll next to the exe) rather than the runtimes/<rid>/native convention,
+       so single-file publish never picks them up as bundle-worthy natives and they
+       silently vanish from the publish output, breaking OCR with no visible error. -->
+  <Target Name="CopyNativeTesseractLibsToPublishDir" AfterTargets="Publish">
+    <ItemGroup>
+      <TesseractNativeLibs Include="$(PkgTesseract)\x64\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(TesseractNativeLibs)" DestinationFolder="$(PublishDir)x64\" />
+  </Target>
 </Project>

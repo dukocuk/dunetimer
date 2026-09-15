@@ -12,6 +12,8 @@ public class ScreenScannerService : IDisposable
 {
     private const double OverlapMergeThreshold = 0.5;
     private const int ProbationMissLimit = 10; // ~20s at the 2s tick interval; only applies to a region that has NEVER matched
+    private const int AutoDetectMaxAttempts = 3; // a single live-game frame can OCR badly; retry a few times before giving up
+    private const int AutoDetectRetryDelayMs = 200; // long enough for the next screen capture to land on a different frame
     private const string OcrEngineFailedMessage = "OCR Engine failed to load. Check tessdata.";
 
     private readonly TextParserService _parser;
@@ -62,6 +64,10 @@ public class ScreenScannerService : IDisposable
 
         try
         {
+            // TesseractEngine's native-library loader locates leptonica/tesseract50.dll via
+            // Assembly.GetExecutingAssembly().Location, which is empty under single-file publish
+            // (the managed assembly is bundled, not a loose file) — CustomSearchPath overrides that.
+            TesseractEnviornment.CustomSearchPath = AppContext.BaseDirectory;
             var tessDataPath = Path.Combine(AppContext.BaseDirectory, "tessdata");
             _engine = new TesseractEngine(tessDataPath, "eng", EngineMode.Default);
 
@@ -86,7 +92,7 @@ public class ScreenScannerService : IDisposable
         var regions = _settings.GetScanRegions();
         if (regions.Count == 0)
         {
-            ScanError?.Invoke("No scan regions configured. Click Auto-Detect or press Ctrl+Alt+R.");
+            ScanError?.Invoke("No scan regions configured. Press Alt+D to run Auto-Detect.");
             return;
         }
 
@@ -228,33 +234,48 @@ public class ScreenScannerService : IDisposable
             var fullRegion = new ScanRegion(0, 0, screenWidth, screenHeight);
 
             int scale = 2; // Use 2x upscale for full screen to balance speed and accuracy
-            using var bitmap = CaptureAndPreprocess(fullRegion, scale);
-            if (bitmap is null)
-                return (0, [], [], "Auto-detect error: screen capture failed.");
-
-            using var ms = new MemoryStream();
-            bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Bmp);
-            using var pix = Pix.LoadFromMemory(ms.ToArray());
-
-            // No overlay exclusion needed here — AutoDetectRegionsAsync hides
-            // the overlay for the duration of this whole pass.
-            var allLines = ExtractLines(pix, PageSegMode.SparseText, scale, fullRegion.X, fullRegion.Y, null);
 
             int found = 0;
             var candidates = new List<(int X, int Y, int W, int H, ScanRegion Padded, string LineText, AnchorKind Kind)>();
-            foreach (var line in allLines)
+
+            // A single live-game frame can OCR badly (HUD animation, particle
+            // FX, transient UI motion mid-render) and miss the anchor word
+            // entirely even though the panel is clearly on screen — retry a
+            // few times on a fresh capture before reporting nothing found,
+            // instead of making the user re-press Alt+D themselves.
+            for (int attempt = 1; attempt <= AutoDetectMaxAttempts; attempt++)
             {
-                var kind = TextParserService.MatchAnchor(line.Text);
-                if (kind is null) continue;
-                found++;
+                using var bitmap = CaptureAndPreprocess(fullRegion, scale);
+                if (bitmap is null)
+                    return (0, [], [], "Auto-detect error: screen capture failed.");
 
-                var padded = BuildAnchorRegion(line, kind.Value, screenWidth, screenHeight);
-                candidates.Add((line.X, line.Y, line.W, line.H, padded, line.Text, kind.Value));
+                using var ms = new MemoryStream();
+                bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Bmp);
+                using var pix = Pix.LoadFromMemory(ms.ToArray());
+
+                // No overlay exclusion needed here — AutoDetectRegionsAsync hides
+                // the overlay for the duration of this whole pass.
+                var allLines = ExtractLines(pix, PageSegMode.SparseText, scale, fullRegion.X, fullRegion.Y, null);
+
+                found = 0;
+                candidates.Clear();
+                foreach (var line in allLines)
+                {
+                    var kind = TextParserService.MatchAnchor(line.Text);
+                    if (kind is null) continue;
+                    found++;
+
+                    var padded = BuildAnchorRegion(line, kind.Value, screenWidth, screenHeight);
+                    candidates.Add((line.X, line.Y, line.W, line.H, padded, line.Text, kind.Value));
+                }
+
+                Console.WriteLine($"[AutoDetect] attempt {attempt}/{AutoDetectMaxAttempts}: scanned {allLines.Count} lines, matched {found} anchor line(s)");
+                foreach (var c in candidates)
+                    Console.WriteLine($"[AutoDetect]   match: \"{c.LineText}\" ({c.Kind})");
+
+                if (found > 0 || attempt == AutoDetectMaxAttempts) break;
+                Thread.Sleep(AutoDetectRetryDelayMs);
             }
-
-            Console.WriteLine($"[AutoDetect] scanned {allLines.Count} lines, matched {found} anchor line(s)");
-            foreach (var c in candidates)
-                Console.WriteLine($"[AutoDetect]   match: \"{c.LineText}\" ({c.Kind})");
 
             // Safe to read the live list here: _isAutoDetecting/_isTicking mutually
             // exclude this pass and ScanTick from ever running at the same time,
@@ -369,34 +390,21 @@ public class ScreenScannerService : IDisposable
         bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Bmp);
         using var pix = Pix.LoadFromMemory(ms.ToArray());
 
-        if (region.AnchorKind is "Queue" or "ExtractionTime")
-        {
-            var kind = region.AnchorKind == "Queue" ? AnchorKind.Queue : AnchorKind.ExtractionTime;
+        // Always set from kind.ToString() in BuildAnchorRegion, so this is a
+        // safe exact round-trip — not a ternary, now that there are 3 kinds.
+        var kind = Enum.Parse<AnchorKind>(region.AnchorKind!);
 
-            // SparseText for both: each is a wide, scattered multi-column
-            // strip (top tab bar plus the anchor's own panel), not a single
-            // block of text.
-            var lines = ExtractLines(pix, PageSegMode.SparseText, scale, region.X, region.Y, overlayRect);
-            if (lines.Count == 0) return [];
+        // SparseText for all three: each is a wide, scattered multi-column
+        // strip (top tab bar plus the anchor's own panel), not a single
+        // block of text.
+        var lines = ExtractLines(pix, PageSegMode.SparseText, scale, region.X, region.Y, overlayRect);
+        if (lines.Count == 0) return [];
 
-            LastScanTextChanged?.Invoke(string.Join('\n', lines.Select(l => l.Text)));
-            var resolved = _parser.ResolveAnchoredTimer(lines, kind, previousName);
-            return resolved is { } r ? [(r.Name, r.Seconds, "⏱️")] : [];
-        }
-
-        // Legacy/manual region (no AnchorKind): unchanged generic behavior.
-        string text;
-        lock (_ocrLock)
-        {
-            // PSM 6 is for a single block of text
-            using var page = _engine!.Process(pix, PageSegMode.SingleBlock);
-            text = page.GetText()?.Trim() ?? "";
-        }
-
-        if (string.IsNullOrWhiteSpace(text)) return [];
-
-        LastScanTextChanged?.Invoke(text);
-        return _parser.ParseCraftingText(text);
+        LastScanTextChanged?.Invoke(string.Join('\n', lines.Select(l => l.Text)));
+        var resolved = kind == AnchorKind.ProcessingCapacity
+            ? _parser.ResolveCapacityTimer(lines)
+            : _parser.ResolveAnchoredTimer(lines, kind, previousName);
+        return resolved is { } r ? [(r.Name, r.Seconds, "⏱️")] : [];
     }
 
     private async void ScanTick(object? sender, EventArgs e)
@@ -439,10 +447,7 @@ public class ScreenScannerService : IDisposable
                 foreach (var (itemName, remainingSeconds, icon) in parsed)
                 {
                     _regionState[region.Id] = (Misses: 0, EverMatched: true, LastName: itemName);
-                    if (region.AnchorKind is not null)
-                        _timerService.AddOrUpdateAnchoredTimer(region.Id, itemName, remainingSeconds, icon);
-                    else
-                        _timerService.AddOrUpdateTimerForRegion(region.Id, itemName, remainingSeconds, icon);
+                    _timerService.AddOrUpdateAnchoredTimer(region.Id, itemName, remainingSeconds, icon);
                 }
             }
 

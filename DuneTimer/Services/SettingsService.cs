@@ -95,7 +95,7 @@ public class SettingsService
         // freshly-saved regions (they'd otherwise deserialize back as
         // SettingsVersion 0 next launch and get cleared again, forever).
         if (!File.Exists(_settingsPath))
-            return new AppSettings { SettingsVersion = 3, HotkeyBindings = HotkeyActions.Defaults() };
+            return new AppSettings { SettingsVersion = 4, HotkeyBindings = HotkeyActions.Defaults() };
         try
         {
             var json = File.ReadAllText(_settingsPath);
@@ -135,11 +135,23 @@ public class SettingsService
                 Save();
             }
 
+            // 4: manual region selection (Ctrl+Alt+R) was removed — regions
+            // with no AnchorKind are orphaned (nothing can create or fix them
+            // anymore) and were only ever OCR'd through the now-deleted
+            // generic/legacy parsing path, so drop them.
+            if (settings.SettingsVersion < 4)
+            {
+                settings.ScanRegions.RemoveAll(r => r.AnchorKind is null);
+                settings.SettingsVersion = 4;
+                _settings = settings;
+                Save();
+            }
+
             return settings;
         }
         catch
         {
-            return new AppSettings { SettingsVersion = 3, HotkeyBindings = HotkeyActions.Defaults() };
+            return new AppSettings { SettingsVersion = 4, HotkeyBindings = HotkeyActions.Defaults() };
         }
     }
 

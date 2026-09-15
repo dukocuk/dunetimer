@@ -31,7 +31,6 @@ DuneTimer runs in the background with global hotkeys (these work even while the 
 | --- | --- |
 | `Alt+T` | Show/hide the overlay |
 | `Alt+N` | Add a manual timer |
-| `Ctrl+Alt+R` | Set an OCR scan region |
 | `Alt+D` | Run auto-detect against a crafting panel |
 | `Alt+S` | Start the OCR scanner |
 | `Alt+X` | Toggle click-through / interactive mode |

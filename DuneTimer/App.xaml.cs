@@ -74,7 +74,6 @@ public partial class App : Application
             _hotkeyService!.Register(_overlay, _settingsService!.HotkeyBindings);
             _hotkeyService.ToggleOverlayRequested += ToggleOverlay;
             _hotkeyService.NewTimerRequested += ShowControlPanel;
-            _hotkeyService.SelectRegionRequested += ShowRegionSelector;
             _hotkeyService.ToggleScannerRequested += () => _scanner!.ToggleScanning();
             _hotkeyService.ToggleInteractiveRequested += ToggleOverlayInteractive;
             _hotkeyService.AutoDetectRequested += async () =>
@@ -95,7 +94,6 @@ public partial class App : Application
         Console.WriteLine("═══════════════════════════════════════");
         PrintHotkey(HotkeyActions.ToggleOverlay, "Show/hide overlay");
         PrintHotkey(HotkeyActions.NewTimer, "Add new timer (manual)");
-        PrintHotkey(HotkeyActions.SelectRegion, "Select OCR scan region");
         PrintHotkey(HotkeyActions.ToggleScanner, "Start/stop OCR scanner");
         PrintHotkey(HotkeyActions.AutoDetect, "Run Auto-Detect (works even if you can't click the overlay in-game)");
         PrintHotkey(HotkeyActions.ToggleInteractive, "Toggle click-through (for dragging/clicking the overlay)");
@@ -156,38 +154,6 @@ public partial class App : Application
         var window = new ControlPanelWindow { DataContext = vm };
         vm.CloseWindow = () => window.Close();
         window.Show();
-    }
-
-    private void ShowRegionSelector()
-    {
-        // Temporarily hide overlay so it doesn't interfere with selection
-        var wasVisible = _overlay!.IsVisible;
-        if (wasVisible)
-            _overlay.Hide();
-
-        // Pause the scanner so no periodic scan tick can run concurrently with
-        // the dialog or with the Clear/Add below — ShowDialog still pumps the
-        // dispatcher, so a tick would otherwise fire while the user selects.
-        bool wasScanning = _scanner!.IsScanning;
-        if (wasScanning)
-            _scanner.StopScanning();
-
-        var selector = new RegionSelectorWindow();
-        var result = selector.ShowDialog();
-
-        if (result == true && selector.SelectedRegion is not null)
-        {
-            var oldIds = _settingsService!.GetScanRegions().Select(r => r.Id).ToList();
-            _settingsService.ClearScanRegions();
-            _settingsService.AddScanRegion(selector.SelectedRegion);
-            _timerService!.DetachTimersForRegions(oldIds);
-        }
-
-        if (wasScanning)
-            _scanner.StartScanning();
-
-        if (wasVisible)
-            _overlay.Show();
     }
 
     protected override void OnExit(ExitEventArgs e)

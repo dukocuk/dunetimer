@@ -36,45 +36,6 @@ public class TimerService
         return timer;
     }
 
-    public CraftingTimer AddOrUpdateTimerForRegion(string regionId, string name, int remainingSeconds, string icon = "⏱️")
-    {
-        // Match on (region, name) together — not region alone — since one padded
-        // region can legitimately hold several distinct timers (e.g. a multi-slot
-        // crafting queue); matching by region only would let two different-named
-        // timers from the same region collide and overwrite each other.
-        var existing = _timers.FirstOrDefault(t => t.SourceRegionId == regionId &&
-            t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        // Adoption fallback: a detached/manual timer with a matching name gets
-        // re-linked instead of spawning a duplicate (e.g. after a region was
-        // pruned/replaced and Auto-Detect later rediscovers the same widget).
-        existing ??= _timers.FirstOrDefault(t => t.SourceRegionId is null &&
-            t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-
-        if (existing is not null)
-        {
-            existing.SourceRegionId = regionId;
-            if (remainingSeconds > existing.TotalDuration.TotalSeconds)
-            {
-                // OCR reads more remaining time than the timer's own total —
-                // only possible if a new craft cycle started in the same spot.
-                existing.StartTime = DateTime.Now;
-                existing.TotalDuration = TimeSpan.FromSeconds(remainingSeconds);
-            }
-            else
-            {
-                // Preserve TotalDuration/progress; only nudge StartTime so the
-                // countdown stays aligned with what the game shows. Safe to do
-                // every tick since it never snaps the progress bar backward.
-                existing.StartTime = DateTime.Now - (existing.TotalDuration - TimeSpan.FromSeconds(remainingSeconds));
-            }
-            return existing;
-        }
-
-        var timer = AddTimer(name, remainingSeconds, icon);
-        timer.SourceRegionId = regionId;
-        return timer;
-    }
-
     public CraftingTimer AddOrUpdateAnchoredTimer(string regionId, string name, int remainingSeconds, string icon = "⏱️")
     {
         // Match on (region, name), same as the generic path — NOT region
@@ -85,9 +46,9 @@ public class TimerService
         // whichever one was being tracked before.
         var existing = _timers.FirstOrDefault(t => t.SourceRegionId == regionId &&
             t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        // Adoption fallback: a detached timer (e.g. Ctrl+Alt+R just replaced
-        // its region, or a prior region was pruned) gets re-linked by name
-        // instead of spawning a duplicate on the next Auto-Detect/tick.
+        // Adoption fallback: a detached timer (e.g. a prior region was pruned)
+        // gets re-linked by name instead of spawning a duplicate on the next
+        // Auto-Detect/tick.
         existing ??= _timers.FirstOrDefault(t => t.SourceRegionId is null &&
             t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 

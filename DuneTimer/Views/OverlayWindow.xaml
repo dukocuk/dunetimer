@@ -117,7 +117,7 @@
 
             <!-- Empty state -->
             <TextBlock Grid.Row="1"
-                       Text="No active timers&#x0a;&#x0a;Alt+N  Manual timer&#x0a;Ctrl+Alt+R Set OCR Region&#x0a;Alt+S  Start OCR scanner&#x0a;Alt+D  Run Auto-Detect&#x0a;Alt+X  Click buttons on/off"
+                       Text="No active timers&#x0a;&#x0a;Alt+N  Manual timer&#x0a;Alt+S  Start OCR scanner&#x0a;Alt+D  Run Auto-Detect&#x0a;Alt+X  Click buttons on/off"
                        Foreground="{StaticResource TextMuted}"
                        FontSize="13" FontFamily="Segoe UI"
                        TextAlignment="Center"

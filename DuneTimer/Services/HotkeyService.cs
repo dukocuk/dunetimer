@@ -13,7 +13,6 @@ public class HotkeyService : IDisposable
 
     public event Action? ToggleOverlayRequested;
     public event Action? NewTimerRequested;
-    public event Action? SelectRegionRequested;
     public event Action? ToggleScannerRequested;
     public event Action? ToggleInteractiveRequested;
     public event Action? AutoDetectRequested;
@@ -79,10 +78,6 @@ public class HotkeyService : IDisposable
                     break;
                 case NativeMethods.HOTKEY_NEW_TIMER:
                     NewTimerRequested?.Invoke();
-                    handled = true;
-                    break;
-                case NativeMethods.HOTKEY_SELECT_REGION:
-                    SelectRegionRequested?.Invoke();
                     handled = true;
                     break;
                 case NativeMethods.HOTKEY_TOGGLE_SCANNER:
