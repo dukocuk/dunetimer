@@ -138,21 +138,6 @@ public class ScreenScannerService : IDisposable
             return;
         }
 
-        // If every known anchor kind already has a tracked region, skip the
-        // expensive full-screen OCR sweep entirely — the periodic per-region
-        // rescan already keeps each one's name/time current (including tab
-        // switches), so there's nothing a fresh detect pass would add.
-        var trackedKinds = _settings.GetScanRegions()
-            .Where(r => r.AnchorKind is not null)
-            .Select(r => r.AnchorKind!)
-            .ToHashSet();
-        if (Enum.GetValues<AnchorKind>().All(k => trackedKinds.Contains(k.ToString())))
-        {
-            ScanInfo?.Invoke("Already tracking every known panel type — nothing new to detect.");
-            if (!IsScanning) StartScanning();
-            return;
-        }
-
         _isAutoDetecting = true;
         bool wasScanning = IsScanning;
         _scanTimer.Stop(); // raw stop, not StopScanning() — avoids flipping IsScanning/UI status just for this pass
