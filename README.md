@@ -5,7 +5,7 @@ A lightweight Windows overlay for **Dune: Awakening** that tracks your crafting 
 ## Features
 
 - **Manual timers** for any of the 41 built-in recipes (ore refining, chemical/spice refining, water processing, blood purifiers, and more).
-- **OCR auto-detect**: point it at a crafting station panel and it reads the countdown for you — no typing required.
+- **OCR auto-detect**: point it at a crafting station panel and it reads the countdown for you — no typing required. It reads pixels off your screen like a screenshot; it never reads the game's process memory.
 - **Always-on-top overlay** — a small, draggable HUD showing every active timer with a countdown and progress bar.
 - **Alerts** — plays a sound (or falls back to a system beep) when a timer finishes, with per-timer and global mute.
 - **Rebindable global hotkeys**, configurable from the in-app Settings window.
@@ -42,6 +42,8 @@ Press `Alt+N` to open the Add Timer window. Either pick a **Category** and **Rec
 ### Auto-detect & OCR scanning
 
 `Alt+D` runs a one-off scan; `Alt+S` starts scanning continuously. Both read the currently open crafting/refinery panel's station name and countdown directly off the screen — including Blood Purifier panels, which don't show a countdown and instead have their remaining time computed from the draining capacity value. **Dune: Awakening must be the focused/foreground window** for either to work; if it isn't, the overlay's status bar shows a message saying so instead of scanning.
+
+The panel showing the timer has to actually be open and visible on screen — DuneTimer captures that area like a screenshot and runs OCR on it, so if the panel is closed or covered there's nothing to read. This is purely screen capture: the app never reads or writes the game's process memory, doesn't inject into it, and doesn't touch anything besides checking which window is currently focused.
 
 ### The overlay
 
