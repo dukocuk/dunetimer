@@ -1,0 +1,57 @@
+name: Release
+
+# Builds and publishes a GitHub Release whenever a vX.Y.Z tag is pushed.
+# The version is taken from the tag itself (via -p:Version=), not from
+# DuneTimer.csproj, so there's no manual "bump the csproj" step to forget —
+# just tag and push.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # WPF/net9.0-windows target — must build on Windows.
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Derive version from tag
+        id: version
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish
+        run: >
+          dotnet publish DuneTimer/DuneTimer.csproj
+          -c Release -r win-x64
+          -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Zip publish output
+        shell: pwsh
+        run: |
+          $publishDir = "DuneTimer/bin/Release/net9.0-windows10.0.19041.0/win-x64/publish"
+          $zipPath = "DuneTimer-${{ steps.version.outputs.tag }}-win-x64.zip"
+          # settings.json is user-local (hotkeys/regions/mute state) and must never ship.
+          Remove-Item (Join-Path $publishDir "settings.json") -ErrorAction SilentlyContinue
+          Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: DuneTimer-${{ steps.version.outputs.tag }}-win-x64.zip
