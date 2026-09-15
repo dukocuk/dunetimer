@@ -60,12 +60,12 @@ DuneTimer keeps an icon in the system tray for the lifetime of the app. Right-cl
 Requires the [.NET 9 SDK](https://dotnet.microsoft.com/download) and Windows (this is a WPF app with Win32 interop, so it can't be built or run on other platforms).
 
 ```
-dotnet build DuneTimer.csproj
-dotnet run --project DuneTimer.csproj
+dotnet build DuneTimer/DuneTimer.csproj
+dotnet run --project DuneTimer/DuneTimer.csproj
 ```
 
 To produce a release build:
 
 ```
-dotnet publish -c Release -r win-x64
+dotnet publish DuneTimer/DuneTimer.csproj -c Release -r win-x64
 ```
