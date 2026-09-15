@@ -25,7 +25,7 @@ Windows SmartScreen may warn that the app is from an unrecognized publisher, sin
 
 ## Usage
 
-DuneTimer runs in the background with global hotkeys (these work even while the game is focused), and can be rebound in Settings:
+DuneTimer has no main window — after launch it lives in the system tray and as a small always-on-top overlay, and its global hotkeys work even while the game is focused (rebindable in Settings).
 
 | Hotkey | Action |
 | --- | --- |
@@ -35,9 +35,25 @@ DuneTimer runs in the background with global hotkeys (these work even while the 
 | `Alt+S` | Start the OCR scanner |
 | `Alt+X` | Toggle click-through / interactive mode |
 
-**Quick start — manual timer:** press `Alt+N`, pick a recipe from the list, and it starts counting down on the overlay.
+### Manual timers
 
-**Quick start — auto-detect:** open a crafting/refinery panel in-game, then press `Alt+D` (or `Alt+S` to keep scanning continuously). DuneTimer reads the station name and countdown directly off the screen and adds it to the overlay automatically.
+Press `Alt+N` to open the Add Timer window. Either pick a **Category** and **Recipe** from the built-in list (set a **Quantity** to queue more than one), or fill in the "Custom Timer" fields (Name, Min, Sec) for anything not in the list, then click **Start Timer**. It appears on the overlay immediately.
+
+### Auto-detect & OCR scanning
+
+`Alt+D` runs a one-off scan; `Alt+S` starts scanning continuously. Both read the currently open crafting/refinery panel's station name and countdown directly off the screen — including Blood Purifier panels, which don't show a countdown and instead have their remaining time computed from the draining capacity value. **Dune: Awakening must be the focused/foreground window** for either to work; if it isn't, the overlay's status bar shows a message saying so instead of scanning.
+
+### The overlay
+
+The overlay is click-through by default so it doesn't block clicks to the game underneath. Press `Alt+X` to switch it to interactive mode — this is required before you can drag it by its header or click its buttons. Each timer row has a mute toggle and a ✕ to remove it. The bottom status bar shows the scanner's current status, a global mute button, a ⚙ button to open Settings, and an **Auto-Detect** button as a clickable alternative to `Alt+D`.
+
+### Settings
+
+Open Settings from the overlay's ⚙ button or the tray menu. From here you can rebind any of the five hotkeys above (click its box, then press a combo that includes Alt, Ctrl, or Shift), and set a custom alert sound — **Test** it, **Browse…** for a `.wav` file, or **Reset** to the default beep.
+
+### System tray
+
+DuneTimer keeps an icon in the system tray for the lifetime of the app. Right-click it for **Show/Hide Overlay**, **Settings**, and **Exit**, or double-click it to toggle the overlay.
 
 ## Building from source
 
