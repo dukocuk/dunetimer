@@ -44,6 +44,15 @@ internal static class NativeMethods
     public static extern int GetSystemMetrics(int index);
 
     [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll")]
     public static extern int GetWindowLong(IntPtr hwnd, int index);
 
     [DllImport("user32.dll")]

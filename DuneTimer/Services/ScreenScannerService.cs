@@ -16,6 +16,12 @@ public class ScreenScannerService : IDisposable
     private const int AutoDetectRetryDelayMs = 200; // long enough for the next screen capture to land on a different frame
     private const string OcrEngineFailedMessage = "OCR Engine failed to load. Check tessdata.";
 
+    // Unverified against the live game — confirm next time it's running (Task
+    // Manager > Details tab for the exact process name; Alt-Tab for the exact
+    // window title) and correct here if scanning never resumes while in-game.
+    private const string GameWindowTitleFragment = "Dune";
+    private const string GameProcessNameFragment = "dunesandbox";
+
     private readonly TextParserService _parser;
     private readonly TimerService _timerService;
     private readonly SettingsService _settings;
@@ -26,6 +32,7 @@ public class ScreenScannerService : IDisposable
 
     private bool _isAutoDetecting;
     private bool _isTicking;
+    private bool _lastGameFocusState = true;
 
     // Wired by App.xaml.cs so the scanner can hide/show the overlay around a
     // one-off Auto-Detect pass (its own HUD sits inside the capture area) and
@@ -135,6 +142,12 @@ public class ScreenScannerService : IDisposable
         if (_isTicking)
         {
             ScanInfo?.Invoke("Scanner busy — try Auto-Detect again in a moment.");
+            return;
+        }
+
+        if (!IsGameForeground())
+        {
+            ScanInfo?.Invoke("Dune: Awakening isn't the focused window — Auto-Detect needs the game on screen.");
             return;
         }
 
@@ -392,9 +405,39 @@ public class ScreenScannerService : IDisposable
         return resolved is { } r ? [(r.Name, r.Seconds, "⏱️")] : [];
     }
 
+    private static bool IsGameForeground()
+    {
+        var hwnd = NativeMethods.GetForegroundWindow();
+        if (hwnd == IntPtr.Zero) return false;
+
+        var title = new System.Text.StringBuilder(256);
+        NativeMethods.GetWindowText(hwnd, title, title.Capacity);
+        if (title.ToString().Contains(GameWindowTitleFragment, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        try
+        {
+            NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+            using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+            return proc.ProcessName.Contains(GameProcessNameFragment, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false; // process exited mid-check, or access denied (e.g. elevated/anti-cheat-protected process)
+        }
+    }
+
     private async void ScanTick(object? sender, EventArgs e)
     {
         if (_isTicking || _isAutoDetecting || _engine is null) return;
+
+        if (!IsGameForeground())
+        {
+            if (_lastGameFocusState) { _lastGameFocusState = false; ScanInfo?.Invoke("Dune: Awakening isn't focused — scanning paused."); }
+            return;
+        }
+        if (!_lastGameFocusState) { _lastGameFocusState = true; ScanInfo?.Invoke("Dune: Awakening focused — scanning resumed."); }
+
         _isTicking = true;
         try
         {
