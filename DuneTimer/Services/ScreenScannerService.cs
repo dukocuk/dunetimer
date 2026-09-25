@@ -216,9 +216,9 @@ public class ScreenScannerService : IDisposable
             // Every region DetectAndMerge produces is anchor-based (Queue or
             // ExtractionTime) — it never creates generic/legacy regions — so
             // every timer here goes through the anchored (region, name) upsert.
-            foreach (var (regionId, name, seconds, icon) in result.Timers)
+            foreach (var (regionId, name, seconds, icon, capturedAt) in result.Timers)
             {
-                _timerService.AddOrUpdateAnchoredTimer(regionId, name, seconds, icon);
+                _timerService.AddOrUpdateAnchoredTimer(regionId, name, seconds, capturedAt, icon);
                 _regionState[regionId] = (Misses: 0, EverMatched: true, LastName: name);
             }
 
@@ -242,7 +242,7 @@ public class ScreenScannerService : IDisposable
     }
 
     private (int Found, List<ScanRegion> Accepted,
-             List<(string RegionId, string Name, int Seconds, string Icon)> Timers,
+             List<(string RegionId, string Name, int Seconds, string Icon, DateTime CapturedAt)> Timers,
              string? Error) DetectAndMerge()
     {
         try
@@ -271,7 +271,7 @@ public class ScreenScannerService : IDisposable
                 // so this only fires as a last resort, never every attempt.
                 int scale = found == 0 && attempt > AutoDetectMaxAttempts - 2 ? 3 : 2;
 
-                using var bitmap = CaptureAndPreprocess(fullRegion, scale);
+                using var bitmap = CaptureAndPreprocess(fullRegion, scale, out _);
                 if (bitmap is null)
                     return (0, [], [], "Auto-detect error: screen capture failed.");
 
@@ -324,10 +324,10 @@ public class ScreenScannerService : IDisposable
                 accepted.Add(c.Padded);
             }
 
-            var timers = new List<(string, string, int, string)>();
+            var timers = new List<(string, string, int, string, DateTime)>();
             foreach (var region in accepted)
-                foreach (var (itemName, remainingSeconds, icon) in ScanRegionOnce(region, overlayRect: null))
-                    timers.Add((region.Id, itemName, remainingSeconds, icon));
+                foreach (var (itemName, remainingSeconds, icon, capturedAt) in ScanRegionOnce(region, overlayRect: null))
+                    timers.Add((region.Id, itemName, remainingSeconds, icon, capturedAt));
 
             return (found, accepted, timers, null);
         }
@@ -403,7 +403,7 @@ public class ScreenScannerService : IDisposable
     // screen width up to the anchor line (see BuildAnchorRegion), so both can
     // plausibly contain the overlay. Pass the same value computed once by the
     // caller for the whole batch — never re-query it here (background thread).
-    private List<(string Name, int Seconds, string Icon)> ScanRegionOnce(ScanRegion region, System.Drawing.Rectangle? overlayRect, string? previousName = null)
+    private List<(string Name, int Seconds, string Icon, DateTime CapturedAt)> ScanRegionOnce(ScanRegion region, System.Drawing.Rectangle? overlayRect, string? previousName = null)
     {
         if (!region.IsValid) return [];
 
@@ -414,7 +414,7 @@ public class ScreenScannerService : IDisposable
         // the 2s interval; small crops (manual regions) keep 3x for accuracy.
         long pixels = (long)region.Width * region.Height;
         int scale = pixels > 3_000_000 ? 1 : pixels > 1_000_000 ? 2 : 3;
-        using var bitmap = CaptureAndPreprocess(region, scale);
+        using var bitmap = CaptureAndPreprocess(region, scale, out var capturedAt);
         if (bitmap is null) return [];
 
         using var ms = new MemoryStream();
@@ -447,22 +447,24 @@ public class ScreenScannerService : IDisposable
             .Distinct()
             .Prepend(kind);
 
-        var results = new List<(string Name, int Seconds, string Icon)>();
+        var results = new List<(string Name, int Seconds, string Icon, DateTime CapturedAt)>();
         foreach (var k in kinds)
         {
             // previousName belongs to the region's own kind only — reusing it
             // for another kind could label a refinery with a Deathstill name
             // on a tick where the station tab failed to OCR.
             string? prev = k == kind ? previousName : null;
-            if (ResolveKind(lines, k, scale, overlayRect, prev) is { } r)
-                results.Add((r.Name, r.Seconds, "⏱️"));
+            if (ResolveKind(lines, k, scale, overlayRect, prev, capturedAt) is { } r)
+                results.Add((r.Name, r.Seconds, "⏱️", r.CapturedAt));
         }
         return results;
     }
 
-    private (string Name, int Seconds)? ResolveKind(
+    // Returns the capture time of whichever read the value came from — the
+    // 3x column rescan happens a full OCR pass after the first capture.
+    private (string Name, int Seconds, DateTime CapturedAt)? ResolveKind(
         List<(int X, int Y, int W, int H, string Text)> lines, AnchorKind kind, int scale,
-        System.Drawing.Rectangle? overlayRect, string? previousName)
+        System.Drawing.Rectangle? overlayRect, string? previousName, DateTime capturedAt)
     {
         var resolved = kind == AnchorKind.ProcessingCapacity
             ? _parser.ResolveCapacityTimer(lines)
@@ -476,19 +478,21 @@ public class ScreenScannerService : IDisposable
         if (resolved is null && kind != AnchorKind.ProcessingCapacity && scale < 3
             && TextParserService.FindAnchorLine(lines, kind) is { } anchor)
         {
-            var merged = RescanAnchorColumn(lines, anchor, overlayRect);
-            if (merged is not null)
-                resolved = _parser.ResolveAnchoredTimer(merged, kind, previousName);
+            if (RescanAnchorColumn(lines, anchor, overlayRect) is { } rescan)
+            {
+                resolved = _parser.ResolveAnchoredTimer(rescan.Lines, kind, previousName);
+                capturedAt = rescan.CapturedAt;
+            }
         }
 
-        return resolved;
+        return resolved is { } r ? (r.Name, r.Seconds, capturedAt) : null;
     }
 
     // Re-captures a narrow column around the anchor at 3x and returns the
     // original lines with everything inside that column replaced by the
     // sharper read (the station-name tab up top is outside the column, so it
     // stays from the first pass). Null if the capture/crop is unusable.
-    private List<(int X, int Y, int W, int H, string Text)>? RescanAnchorColumn(
+    private (List<(int X, int Y, int W, int H, string Text)> Lines, DateTime CapturedAt)? RescanAnchorColumn(
         List<(int X, int Y, int W, int H, string Text)> lines,
         (int X, int Y, int W, int H, string Text) anchor,
         System.Drawing.Rectangle? overlayRect)
@@ -503,7 +507,7 @@ public class ScreenScannerService : IDisposable
         var crop = new ScanRegion(left, top, right - left, bottom - top);
         if (!crop.IsValid) return null;
 
-        using var bitmap = CaptureAndPreprocess(crop, 3);
+        using var bitmap = CaptureAndPreprocess(crop, 3, out var capturedAt);
         if (bitmap is null) return null;
 
         using var ms = new MemoryStream();
@@ -514,11 +518,12 @@ public class ScreenScannerService : IDisposable
         Console.WriteLine($"[Scanner] second-pass column read: {string.Join(" | ", cropLines.Select(l => $"\"{l.Text}\""))}");
 
         var cropRect = new System.Drawing.Rectangle(crop.X, crop.Y, crop.Width, crop.Height);
-        return lines
+        var merged = lines
             .Where(l => !cropRect.IntersectsWith(new System.Drawing.Rectangle(l.X, l.Y, l.W, l.H)))
             .Concat(cropLines)
             .OrderBy(l => l.Y)
             .ToList();
+        return (merged, capturedAt);
     }
 
     private static bool IsGameForeground()
@@ -592,8 +597,8 @@ public class ScreenScannerService : IDisposable
                 // (ScanRegionOnce orders it first), so LastName stays that
                 // kind's station rather than whichever extra panel was seen.
                 _regionState[region.Id] = (Misses: 0, EverMatched: true, LastName: parsed[0].Name);
-                foreach (var (itemName, remainingSeconds, icon) in parsed)
-                    _timerService.AddOrUpdateAnchoredTimer(region.Id, itemName, remainingSeconds, icon);
+                foreach (var (itemName, remainingSeconds, icon, capturedAt) in parsed)
+                    _timerService.AddOrUpdateAnchoredTimer(region.Id, itemName, remainingSeconds, capturedAt, icon);
             }
 
             if (dead.Count > 0)
@@ -613,11 +618,15 @@ public class ScreenScannerService : IDisposable
         }
     }
 
-    private static Bitmap? CaptureAndPreprocess(ScanRegion region, int scale = 3)
+    // capturedAt is the moment the pixels were grabbed — the time any value
+    // read from them was actually true (see AddOrUpdateAnchoredTimer).
+    private static Bitmap? CaptureAndPreprocess(ScanRegion region, int scale, out DateTime capturedAt)
     {
+        capturedAt = DateTime.Now;
         try
         {
             var bmp = new Bitmap(region.Width, region.Height, PixelFormat.Format32bppArgb);
+            capturedAt = DateTime.Now;
             using (var g = Graphics.FromImage(bmp))
             {
                 g.CopyFromScreen(region.X, region.Y, 0, 0, new Size(region.Width, region.Height));
