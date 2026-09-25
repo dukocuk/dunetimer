@@ -12,8 +12,16 @@ public class ScreenScannerService : IDisposable
 {
     private const double OverlapMergeThreshold = 0.5;
     private const int ProbationMissLimit = 10; // ~20s at the 2s tick interval; only applies to a region that has NEVER matched
-    private const int AutoDetectMaxAttempts = 3; // a single live-game frame can OCR badly; retry a few times before giving up
-    private const int AutoDetectRetryDelayMs = 200; // long enough for the next screen capture to land on a different frame
+    private const int AutoDetectMaxAttempts = 5; // a single live-game frame can OCR badly; retry a few times before giving up
+    // 200ms used to be inside a single UI animation/particle-FX state, so
+    // fast retries kept re-sampling the same bad frame instead of a
+    // different one (confirmed live: a whole 3x200ms burst missed Deathstill's
+    // EXTRACTION anchor together, while separate manual re-presses each hit
+    // on their first attempt). ~700ms is long enough to likely land on a
+    // different frame; worst case for one Alt+D press is now ~3.5s instead of
+    // ~0.6s, an accepted tradeoff since this only runs on a user-triggered,
+    // infrequent pass, never on the periodic per-tick scan.
+    private const int AutoDetectRetryDelayMs = 700;
     private const string OcrEngineFailedMessage = "OCR Engine failed to load. Check tessdata.";
 
     // Unverified against the live game — confirm next time it's running (Task
@@ -94,23 +102,35 @@ public class ScreenScannerService : IDisposable
         _scanTimer.Tick += ScanTick;
     }
 
+    // Starting the scanner also runs one Auto-Detect pass, so the user doesn't
+    // have to press Alt+D first. Scanning is switched on BEFORE the pass so
+    // AutoDetectRegionsAsync sees wasScanning == true and restores the timer
+    // itself when it finishes.
     public void StartScanning()
     {
-        var regions = _settings.GetScanRegions();
-        if (regions.Count == 0)
-        {
-            ScanError?.Invoke("No scan regions configured. Press Alt+D to run Auto-Detect.");
-            return;
-        }
+        if (!StartScanningCore()) return;
+        _ = RunStartupAutoDetectAsync();
+    }
 
+    private async Task RunStartupAutoDetectAsync()
+    {
+        try { await AutoDetectRegionsAsync(); }
+        catch (Exception ex) { ScanError?.Invoke($"Auto-detect error: {ex.Message}"); }
+    }
+
+    // Just the tick-loop start, with no detect pass. Zero regions is fine here:
+    // ScanTick returns quietly on an empty list, and Auto-Detect fills it in.
+    private bool StartScanningCore()
+    {
         if (_engine is null)
         {
             ScanError?.Invoke(OcrEngineFailedMessage);
-            return;
+            return false;
         }
 
         IsScanning = true;
         _scanTimer.Start();
+        return true;
     }
 
     public void StopScanning()
@@ -210,11 +230,12 @@ public class ScreenScannerService : IDisposable
         {
             if (overlayWasVisible) ShowOverlay?.Invoke();
             _isAutoDetecting = false;
-            if (_settings.GetScanRegions().Count > 0)
-            {
-                if (wasScanning) _scanTimer.Start();
-                else StartScanning();
-            }
+            // wasScanning restarts unconditionally: Start now begins scanning
+            // with zero regions, and IsScanning would otherwise stay true
+            // with a dead timer if this pass found nothing.
+            if (wasScanning) _scanTimer.Start();
+            else if (_settings.GetScanRegions().Count > 0)
+                StartScanningCore(); // not StartScanning() — that would kick off another detect pass
         }
 
         if (summary is not null) ScanInfo?.Invoke(summary);
@@ -231,8 +252,6 @@ public class ScreenScannerService : IDisposable
             Console.WriteLine($"[AutoDetect] metrics={screenWidth}x{screenHeight} (compare against your monitor's actual native resolution — if smaller, display scaling is virtualizing this process and coordinates will be off)");
             var fullRegion = new ScanRegion(0, 0, screenWidth, screenHeight);
 
-            int scale = 2; // Use 2x upscale for full screen to balance speed and accuracy
-
             int found = 0;
             var candidates = new List<(int X, int Y, int W, int H, ScanRegion Padded, string LineText, AnchorKind Kind)>();
 
@@ -243,6 +262,15 @@ public class ScreenScannerService : IDisposable
             // instead of making the user re-press Alt+D themselves.
             for (int attempt = 1; attempt <= AutoDetectMaxAttempts; attempt++)
             {
+                // 2x balances speed/accuracy for most attempts, but if
+                // everything so far has come up empty, spend the last couple
+                // of attempts at 3x instead of sampling another noisy 2x
+                // frame — confirmed live that a whole burst of same-scale
+                // retries can miss an anchor together while a cleaner frame
+                // reads it fine. Full-screen 3x roughly doubles the 2x cost,
+                // so this only fires as a last resort, never every attempt.
+                int scale = found == 0 && attempt > AutoDetectMaxAttempts - 2 ? 3 : 2;
+
                 using var bitmap = CaptureAndPreprocess(fullRegion, scale);
                 if (bitmap is null)
                     return (0, [], [], "Auto-detect error: screen capture failed.");
@@ -267,7 +295,7 @@ public class ScreenScannerService : IDisposable
                     candidates.Add((line.X, line.Y, line.W, line.H, padded, line.Text, kind.Value));
                 }
 
-                Console.WriteLine($"[AutoDetect] attempt {attempt}/{AutoDetectMaxAttempts}: scanned {allLines.Count} lines, matched {found} anchor line(s)");
+                Console.WriteLine($"[AutoDetect] attempt {attempt}/{AutoDetectMaxAttempts} (scale={scale}): scanned {allLines.Count} lines, matched {found} anchor line(s)");
                 foreach (var c in candidates)
                     Console.WriteLine($"[AutoDetect]   match: \"{c.LineText}\" ({c.Kind})");
 
@@ -285,8 +313,13 @@ public class ScreenScannerService : IDisposable
                 // Dedup on the RAW (unpadded) box, not the padded region — two
                 // nearby but distinct countdowns must not collapse into one
                 // region just because their padded boxes overlap.
-                bool alreadyCovered = existingRegions.Any(r => r.OverlapRatio(c.X, c.Y, c.W, c.H) > OverlapMergeThreshold)
-                    || accepted.Any(a => a.OverlapRatio(c.X, c.Y, c.W, c.H) > OverlapMergeThreshold);
+                // Same-kind only: anchor regions are full-width strips from
+                // y=0, so a taller region of another kind (e.g. Deathstill's
+                // Extraction) would otherwise swallow a Queue anchor and it
+                // would never be tracked.
+                string kindName = c.Kind.ToString();
+                bool alreadyCovered = existingRegions.Any(r => r.AnchorKind == kindName && r.OverlapRatio(c.X, c.Y, c.W, c.H) > OverlapMergeThreshold)
+                    || accepted.Any(a => a.AnchorKind == kindName && a.OverlapRatio(c.X, c.Y, c.W, c.H) > OverlapMergeThreshold);
                 if (alreadyCovered) continue;
                 accepted.Add(c.Padded);
             }
@@ -321,7 +354,7 @@ public class ScreenScannerService : IDisposable
         // anchor's own text height so it adapts to resolution/UI scale, with
         // a generous floor) so the value is actually inside this region —
         // otherwise ResolveAnchoredTimer never finds a time to read.
-        int verticalPad = Math.Max(anchor.H * 10, 250);
+        int verticalPad = TextParserService.VerticalPad(anchor.H);
         int bottom = Math.Min(screenHeight, anchor.Y + anchor.H + verticalPad);
         return new ScanRegion(0, 0, screenWidth, bottom) { AnchorKind = kind.ToString() };
     }
@@ -399,10 +432,93 @@ public class ScreenScannerService : IDisposable
         if (lines.Count == 0) return [];
 
         LastScanTextChanged?.Invoke(string.Join('\n', lines.Select(l => l.Text)));
+
+        // Resolve every anchor kind visible in this read, not just the one
+        // the region was created for. Regions are full-width strips from y=0,
+        // so walking from e.g. a Deathstill (Extraction) to a refinery (Queue)
+        // shows the new panel inside the existing region — picking it up here
+        // tracks it on the next tick instead of waiting for a manual Alt+D.
+        // The region's own kind goes first and is always tried, so miss
+        // counting and the "no time" hint behave as before.
+        var kinds = lines
+            .Select(l => TextParserService.MatchAnchor(l.Text))
+            .OfType<AnchorKind>()
+            .Where(k => k != kind)
+            .Distinct()
+            .Prepend(kind);
+
+        var results = new List<(string Name, int Seconds, string Icon)>();
+        foreach (var k in kinds)
+        {
+            // previousName belongs to the region's own kind only — reusing it
+            // for another kind could label a refinery with a Deathstill name
+            // on a tick where the station tab failed to OCR.
+            string? prev = k == kind ? previousName : null;
+            if (ResolveKind(lines, k, scale, overlayRect, prev) is { } r)
+                results.Add((r.Name, r.Seconds, "⏱️"));
+        }
+        return results;
+    }
+
+    private (string Name, int Seconds)? ResolveKind(
+        List<(int X, int Y, int W, int H, string Text)> lines, AnchorKind kind, int scale,
+        System.Drawing.Rectangle? overlayRect, string? previousName)
+    {
         var resolved = kind == AnchorKind.ProcessingCapacity
             ? _parser.ResolveCapacityTimer(lines)
             : _parser.ResolveAnchoredTimer(lines, kind, previousName);
-        return resolved is { } r ? [(r.Name, r.Seconds, "⏱️")] : [];
+
+        // The wide region can be downscaled to 1x on big displays (see above),
+        // which is where small value text like Deathstill's "46m 28s" stops
+        // OCR-ing even though the anchor label (bigger text) still does. When
+        // the anchor was seen but no time came out, re-read just that column
+        // at 3x and retry. Fallback only, so normal ticks stay fast.
+        if (resolved is null && kind != AnchorKind.ProcessingCapacity && scale < 3
+            && TextParserService.FindAnchorLine(lines, kind) is { } anchor)
+        {
+            var merged = RescanAnchorColumn(lines, anchor, overlayRect);
+            if (merged is not null)
+                resolved = _parser.ResolveAnchoredTimer(merged, kind, previousName);
+        }
+
+        return resolved;
+    }
+
+    // Re-captures a narrow column around the anchor at 3x and returns the
+    // original lines with everything inside that column replaced by the
+    // sharper read (the station-name tab up top is outside the column, so it
+    // stays from the first pass). Null if the capture/crop is unusable.
+    private List<(int X, int Y, int W, int H, string Text)>? RescanAnchorColumn(
+        List<(int X, int Y, int W, int H, string Text)> lines,
+        (int X, int Y, int W, int H, string Text) anchor,
+        System.Drawing.Rectangle? overlayRect)
+    {
+        int screenWidth = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSCREEN);
+        int screenHeight = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN);
+
+        int left = Math.Max(0, anchor.X - 250);
+        int right = Math.Min(screenWidth, anchor.X + 250);
+        int top = Math.Max(0, anchor.Y - anchor.H);
+        int bottom = Math.Min(screenHeight, anchor.Y + anchor.H + TextParserService.VerticalPad(anchor.H));
+        var crop = new ScanRegion(left, top, right - left, bottom - top);
+        if (!crop.IsValid) return null;
+
+        using var bitmap = CaptureAndPreprocess(crop, 3);
+        if (bitmap is null) return null;
+
+        using var ms = new MemoryStream();
+        bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Bmp);
+        using var pix = Pix.LoadFromMemory(ms.ToArray());
+
+        var cropLines = ExtractLines(pix, PageSegMode.SparseText, 3, crop.X, crop.Y, overlayRect);
+        Console.WriteLine($"[Scanner] second-pass column read: {string.Join(" | ", cropLines.Select(l => $"\"{l.Text}\""))}");
+
+        var cropRect = new System.Drawing.Rectangle(crop.X, crop.Y, crop.Width, crop.Height);
+        return lines
+            .Where(l => !cropRect.IntersectsWith(new System.Drawing.Rectangle(l.X, l.Y, l.W, l.H)))
+            .Concat(cropLines)
+            .OrderBy(l => l.Y)
+            .ToList();
     }
 
     private static bool IsGameForeground()
@@ -472,11 +588,12 @@ public class ScreenScannerService : IDisposable
                     _regionState[region.Id] = state;
                     continue;
                 }
+                // parsed[0] is the region's own anchor kind when it resolved
+                // (ScanRegionOnce orders it first), so LastName stays that
+                // kind's station rather than whichever extra panel was seen.
+                _regionState[region.Id] = (Misses: 0, EverMatched: true, LastName: parsed[0].Name);
                 foreach (var (itemName, remainingSeconds, icon) in parsed)
-                {
-                    _regionState[region.Id] = (Misses: 0, EverMatched: true, LastName: itemName);
                     _timerService.AddOrUpdateAnchoredTimer(region.Id, itemName, remainingSeconds, icon);
-                }
             }
 
             if (dead.Count > 0)

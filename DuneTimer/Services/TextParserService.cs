@@ -93,6 +93,20 @@ public partial class TextParserService
         return null;
     }
 
+    // How far below an anchor line its value can sit. Shared by the region
+    // builder (so the value is inside the capture) and the resolver (so it's
+    // inside the search) — scaled off the anchor's own text height so it
+    // adapts to resolution/UI scale, with a generous floor.
+    public static int VerticalPad(int anchorHeight) => Math.Max(anchorHeight * 10, 250);
+
+    public static (int X, int Y, int W, int H, string Text)? FindAnchorLine(
+        IReadOnlyList<(int X, int Y, int W, int H, string Text)> lines, AnchorKind kind)
+    {
+        foreach (var l in lines)
+            if (MatchAnchor(l.Text) == kind) return l;
+        return null;
+    }
+
     // lines must be pre-sorted top-to-bottom by Y (caller's responsibility —
     // OCR iteration order isn't reliable for this). The region these lines
     // come from spans from the top of the screen (to see the highlighted
@@ -123,16 +137,24 @@ public partial class TextParserService
         int anchorColIndex = column.FindIndex(l => MatchAnchor(l.Text) == kind);
 
         int seconds = 0;
-        // Search the anchor's own line, then the next few lines below it in
-        // the same column, for the first valid time reading — label and
+        // Search the anchor's own line, then every line below it in the same
+        // column within the anchor's vertical pad (same bound as
+        // BuildAnchorRegion), for the first valid time reading — label and
         // value aren't reliably on the same OCR line or immediately adjacent
-        // one (e.g. "EXTRACTION" / "TIME" / "23m 54s" are three separate lines).
-        for (int i = anchorColIndex; i >= 0 && i < column.Count && i < anchorColIndex + 4; i++)
+        // one (e.g. "EXTRACTION" / "TIME" / "23m 54s" are three separate
+        // lines, and Deathstill can put other rows between them).
+        int maxY = anchor.Y + anchor.H + VerticalPad(anchor.H);
+        for (int i = anchorColIndex; i >= 0 && i < column.Count && column[i].Y <= maxY; i++)
         {
             seconds = TryExtractTime(column[i].Text, out _);
             if (seconds > 0) break;
         }
-        if (seconds <= 0) return null;
+        if (seconds <= 0)
+        {
+            Console.WriteLine($"[Scanner] {kind} anchor at ({anchor.X},{anchor.Y}) found but no time in its column; lines searched: "
+                + string.Join(" | ", column.Where(l => l.Y >= anchor.Y && l.Y <= maxY).Select(l => $"\"{l.Text}\"")));
+            return null;
+        }
 
         // Name is the best known station/building-name match found anywhere
         // in the captured lines (the tab sits above the anchor, same list for

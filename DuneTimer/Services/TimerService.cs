@@ -38,23 +38,23 @@ public class TimerService
 
     public CraftingTimer AddOrUpdateAnchoredTimer(string regionId, string name, int remainingSeconds, string icon = "⏱️")
     {
-        // Match on (region, name), same as the generic path — NOT region
-        // alone. The anchor region is a fixed spot on screen (the top nav
-        // bar), but which station is open there changes as the player walks
-        // between refineries/appliances, and each one should get its own
-        // independent timer rather than the newly-viewed station clobbering
-        // whichever one was being tracked before.
+        // One timer per station name — NOT per region. Each station that's
+        // viewed gets its own independent timer (rather than a newly-viewed
+        // station clobbering the previous one), but regions are full-width
+        // strips from y=0 and every region resolves every anchor kind it sees,
+        // so several regions can read the same panel on the same tick. Prefer
+        // this region's own timer, then fall back to any same-named timer
+        // (linked to another region or detached) instead of spawning a duplicate.
         var existing = _timers.FirstOrDefault(t => t.SourceRegionId == regionId &&
             t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        // Adoption fallback: a detached timer (e.g. a prior region was pruned)
-        // gets re-linked by name instead of spawning a duplicate on the next
-        // Auto-Detect/tick.
-        existing ??= _timers.FirstOrDefault(t => t.SourceRegionId is null &&
+        existing ??= _timers.FirstOrDefault(t =>
             t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
         if (existing is not null)
         {
-            existing.SourceRegionId = regionId;
+            // Keep the original link when another region also sees it — only
+            // re-link a detached timer, so the link doesn't flip-flop per tick.
+            existing.SourceRegionId ??= regionId;
             if (remainingSeconds > existing.TotalDuration.TotalSeconds)
             {
                 existing.StartTime = DateTime.Now;

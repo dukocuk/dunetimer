@@ -76,7 +76,10 @@ public class OverlayViewModel : ViewModelBase
         // so no dispatcher marshaling is needed for them.
         _scanner.ScanningStateChanged += isScanning =>
             RunOnUiThread(() => OnScanningStateChanged(isScanning));
-        _scanner.LastScanTextChanged += text => Console.WriteLine($"[Scanner] OCR read: {TruncateText(text, 60)}");
+        // 60 chars used to hide whether an anchor word like "EXTRACTION" was
+        // even present in a pass's raw OCR output — raised to a safety cap
+        // far above any real single-region scan instead of a display width.
+        _scanner.LastScanTextChanged += text => Console.WriteLine($"[Scanner] OCR read: {TruncateText(text, 2000)}");
         _scanner.ScanInfo += info => Console.WriteLine($"[Scanner] {info}");
         _scanner.ScanError += error => Console.WriteLine($"[Scanner] {error}");
 

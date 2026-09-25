@@ -32,7 +32,7 @@ DuneTimer has no main window — after launch it lives in the system tray and as
 | `Alt+T` | Show/hide the overlay |
 | `Alt+N` | Add a manual timer |
 | `Alt+D` | Run auto-detect against a crafting panel |
-| `Alt+S` | Start the OCR scanner |
+| `Alt+S` | Start the OCR scanner (runs an auto-detect first) |
 | `Alt+X` | Toggle click-through / interactive mode |
 
 ### Manual timers
@@ -41,7 +41,7 @@ Press `Alt+N` to open the Add Timer window. Either pick a **Category** and **Rec
 
 ### Auto-detect & OCR scanning
 
-`Alt+D` runs a one-off scan; `Alt+S` starts scanning continuously. Both read the currently open crafting/refinery panel's station name and countdown directly off the screen — including Blood Purifier panels, which don't show a countdown and instead have their remaining time computed from the draining capacity value. **Dune: Awakening must be the focused/foreground window** for either to work; if it isn't, the overlay's status bar shows a message saying so instead of scanning.
+`Alt+D` runs a one-off scan; `Alt+S` runs that same auto-detect and then keeps scanning continuously, so you don't need to press `Alt+D` first. Both read the currently open crafting/refinery panel's station name and countdown directly off the screen — including Blood Purifier panels, which don't show a countdown and instead have their remaining time computed from the draining capacity value. **Dune: Awakening must be the focused/foreground window** for either to work; if it isn't, the overlay's status bar shows a message saying so instead of scanning.
 
 The panel showing the timer has to actually be open and visible on screen — DuneTimer captures that area like a screenshot and runs OCR on it, so if the panel is closed or covered there's nothing to read. This is purely screen capture: the app never reads or writes the game's process memory, doesn't inject into it, and doesn't touch anything besides checking which window is currently focused.
 
