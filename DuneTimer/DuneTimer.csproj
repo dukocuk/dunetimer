@@ -7,7 +7,7 @@
     <ApplicationIcon>Assets\DuneTimer.ico</ApplicationIcon>
     <AssemblyName>DuneTimer</AssemblyName>
     <RootNamespace>DuneTimer</RootNamespace>
-    <Version>1.2.3</Version>
+    <Version>1.3.0</Version>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
