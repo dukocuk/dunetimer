@@ -25,10 +25,11 @@ public static class HotkeyActions
     public const string ToggleScanner = "ToggleScanner";
     public const string ToggleInteractive = "ToggleInteractive";
     public const string AutoDetect = "AutoDetect";
+    public const string ToggleZone = "ToggleZone";
 
     public static readonly string[] All =
     {
-        ToggleOverlay, NewTimer, ToggleScanner, ToggleInteractive, AutoDetect
+        ToggleOverlay, NewTimer, ToggleScanner, ToggleInteractive, AutoDetect, ToggleZone
     };
 
     public static string DisplayName(string action) => action switch
@@ -38,6 +39,7 @@ public static class HotkeyActions
         ToggleScanner => "Start/stop OCR scanner",
         ToggleInteractive => "Toggle click-through",
         AutoDetect => "Run Auto-Detect",
+        ToggleZone => "Switch zone (HB/DD)",
         _ => action
     };
 
@@ -48,6 +50,8 @@ public static class HotkeyActions
         [ToggleScanner] = new HotkeyBinding { Modifiers = NativeMethods.MOD_ALT, Key = NativeMethods.VK_S },
         [ToggleInteractive] = new HotkeyBinding { Modifiers = NativeMethods.MOD_ALT, Key = NativeMethods.VK_X },
         [AutoDetect] = new HotkeyBinding { Modifiers = NativeMethods.MOD_ALT, Key = NativeMethods.VK_D },
+        // Not Alt+Z — that's the NVIDIA overlay's default.
+        [ToggleZone] = new HotkeyBinding { Modifiers = NativeMethods.MOD_ALT, Key = NativeMethods.VK_L },
     };
 
     public static int HotkeyId(string action) => action switch
@@ -57,6 +61,7 @@ public static class HotkeyActions
         ToggleScanner => NativeMethods.HOTKEY_TOGGLE_SCANNER,
         ToggleInteractive => NativeMethods.HOTKEY_TOGGLE_INTERACTIVE,
         AutoDetect => NativeMethods.HOTKEY_AUTO_DETECT,
+        ToggleZone => NativeMethods.HOTKEY_TOGGLE_ZONE,
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, null)
     };
 }

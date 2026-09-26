@@ -61,6 +61,29 @@ public class ControlPanelViewModel : ViewModelBase
         set => SetProperty(ref _customSeconds, value);
     }
 
+    // Defaults to the overlay's current zone; can be overridden per timer.
+    private Zone _selectedZone;
+
+    public bool IsHaggaBasin
+    {
+        get => _selectedZone == Zone.HaggaBasin;
+        set { if (value) SetZone(Zone.HaggaBasin); }
+    }
+
+    public bool IsDeepDesert
+    {
+        get => _selectedZone == Zone.DeepDesert;
+        set { if (value) SetZone(Zone.DeepDesert); }
+    }
+
+    private void SetZone(Zone zone)
+    {
+        if (_selectedZone == zone) return;
+        _selectedZone = zone;
+        OnPropertyChanged(nameof(IsHaggaBasin));
+        OnPropertyChanged(nameof(IsDeepDesert));
+    }
+
     public ICommand StartTimerCommand { get; }
 
     public Action? CloseWindow { get; set; }
@@ -69,6 +92,7 @@ public class ControlPanelViewModel : ViewModelBase
     {
         _timerService = timerService;
         _recipeService = recipeService;
+        _selectedZone = timerService.CurrentZone;
 
         Categories = _recipeService.LoadRecipes();
         SelectedCategory = Categories.FirstOrDefault();
@@ -86,7 +110,7 @@ public class ControlPanelViewModel : ViewModelBase
             int total = mins * 60 + secs;
             if (total > 0)
             {
-                _timerService.AddTimer(CustomName, total);
+                _timerService.AddTimer(CustomName, total, zone: _selectedZone);
                 CloseWindow?.Invoke();
                 return;
             }
@@ -101,7 +125,8 @@ public class ControlPanelViewModel : ViewModelBase
                 SelectedRecipe.Name,
                 SelectedRecipe.DurationSeconds,
                 SelectedRecipe.Icon,
-                qty);
+                qty,
+                _selectedZone);
             CloseWindow?.Invoke();
         }
     }

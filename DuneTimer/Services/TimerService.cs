@@ -19,7 +19,18 @@ public class TimerService
         _ticker.Start();
     }
 
-    public CraftingTimer AddTimer(string name, int durationSeconds, string icon = "⏱️", int quantity = 1)
+    // The map the player is on right now — new timers are tagged with it.
+    // Set from settings at startup; App persists it on CurrentZoneChanged.
+    public Zone CurrentZone { get; set; }
+    public event Action<Zone>? CurrentZoneChanged;
+
+    public void ToggleZone()
+    {
+        CurrentZone = ZoneInfo.Other(CurrentZone);
+        CurrentZoneChanged?.Invoke(CurrentZone);
+    }
+
+    public CraftingTimer AddTimer(string name, int durationSeconds, string icon = "⏱️", int quantity = 1, Zone? zone = null)
     {
         var totalDuration = TimeSpan.FromSeconds(durationSeconds * quantity);
         var timer = new CraftingTimer
@@ -28,7 +39,8 @@ public class TimerService
             Icon = icon,
             TotalDuration = totalDuration,
             StartTime = DateTime.Now,
-            Quantity = quantity
+            Quantity = quantity,
+            Zone = zone ?? CurrentZone
         };
 
         _timers.Add(timer);
@@ -54,10 +66,33 @@ public class TimerService
         // so several regions can read the same panel on the same tick. Prefer
         // this region's own timer, then fall back to any same-named timer
         // (linked to another region or detached) instead of spawning a duplicate.
-        var existing = _timers.FirstOrDefault(t => t.SourceRegionId == regionId &&
+        // Only timers in the current zone qualify — the same station type in
+        // Hagga Basin and the Deep Desert are separate machines.
+        var zone = CurrentZone;
+        var existing = _timers.FirstOrDefault(t => t.Zone == zone && t.SourceRegionId == regionId &&
             t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        existing ??= _timers.FirstOrDefault(t =>
+        existing ??= _timers.FirstOrDefault(t => t.Zone == zone &&
             t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is not null && existing.IsDone)
+        {
+            // Finished timers stay listed, so they're still found here. A small
+            // reading is the game's display lagging our prediction past zero —
+            // reviving on it would complete (and alert) a second time.
+            if (remaining <= SegmentBreakThreshold)
+            {
+                Console.WriteLine($"[Timer] {name}: ignored post-done read {remainingSeconds}s");
+                return existing;
+            }
+
+            // A real new countdown on this station — restart the card from scratch.
+            existing.CompletedAt = null;
+            existing.SourceRegionId ??= regionId;
+            existing.TotalDuration = remaining;
+            StartRateSegment(existing, remaining, observedAt);
+            Console.WriteLine($"[Timer] {name} ({ZoneInfo.ShortName(zone)}): revived at {remainingSeconds}s");
+            return existing;
+        }
 
         if (existing is not null)
         {
@@ -88,7 +123,7 @@ public class TimerService
                     SyncTo(existing, remaining, observedAt);
             }
 
-            Console.WriteLine($"[Timer] {name}: read {remainingSeconds}s, predicted {predicted.TotalSeconds:F1}s, rate {existing.Rate:F3}");
+            Console.WriteLine($"[Timer] {name} ({ZoneInfo.ShortName(zone)}): read {remainingSeconds}s, predicted {predicted.TotalSeconds:F1}s, rate {existing.Rate:F3}");
             return existing;
         }
 
@@ -158,13 +193,23 @@ public class TimerService
         }
     }
 
-    private void OnTick(object? sender, EventArgs e)
+    public void ClearCompleted()
     {
-        var completed = _timers.Where(t => t.IsFinished).ToList();
-        foreach (var timer in completed)
+        foreach (var timer in _timers.Where(t => t.IsDone).ToList())
         {
             _timers.Remove(timer);
             ActiveTimers.Remove(timer);
+        }
+    }
+
+    // Only ever marks timers done — un-marking happens in
+    // AddOrUpdateAnchoredTimer, where the raw reading is known.
+    private void OnTick(object? sender, EventArgs e)
+    {
+        var completed = _timers.Where(t => t.IsFinished && !t.IsDone).ToList();
+        foreach (var timer in completed)
+        {
+            timer.CompletedAt = DateTime.Now;
             TimerCompleted?.Invoke(timer);
         }
     }

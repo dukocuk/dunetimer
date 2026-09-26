@@ -16,6 +16,7 @@ public class HotkeyService : IDisposable
     public event Action? ToggleScannerRequested;
     public event Action? ToggleInteractiveRequested;
     public event Action? AutoDetectRequested;
+    public event Action? ToggleZoneRequested;
 
     public List<string> Register(Window window, Dictionary<string, HotkeyBinding> bindings)
     {
@@ -90,6 +91,10 @@ public class HotkeyService : IDisposable
                     break;
                 case NativeMethods.HOTKEY_AUTO_DETECT:
                     AutoDetectRequested?.Invoke();
+                    handled = true;
+                    break;
+                case NativeMethods.HOTKEY_TOGGLE_ZONE:
+                    ToggleZoneRequested?.Invoke();
                     handled = true;
                     break;
             }

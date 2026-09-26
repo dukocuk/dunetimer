@@ -17,6 +17,8 @@
         <SolidColorBrush x:Key="TextPrimary" Color="#EAEAEA" />
         <SolidColorBrush x:Key="TextMuted" Color="#666666" />
         <SolidColorBrush x:Key="ProgressTrack" Color="#0F3460" />
+        <SolidColorBrush x:Key="DoneGreen" Color="#00C853" />
+        <SolidColorBrush x:Key="DoneMuted" Color="#8A93A6" />
 
         <Style x:Key="RowIconButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
@@ -25,6 +27,27 @@
             <Setter Property="Padding" Value="4,0" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- HB/DD zone tag. Background/Foreground are bound per use; the
+             template drops the default button chrome down to a small pill. -->
+        <Style x:Key="ZonePill" TargetType="Button">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Padding" Value="4,1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -42,12 +65,21 @@
                     CornerRadius="12,12,0,0"
                     MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <Grid>
-                    <TextBlock Text="⏱ DUNE TIMER"
-                               Foreground="White"
-                               FontFamily="Segoe UI"
-                               FontSize="15" FontWeight="Bold"
-                               VerticalAlignment="Center"
-                               Margin="14,0,0,0" />
+                    <StackPanel Orientation="Horizontal" Margin="14,0,0,0">
+                        <TextBlock Text="⏱ DUNE TIMER"
+                                   Foreground="White"
+                                   FontFamily="Segoe UI"
+                                   FontSize="15" FontWeight="Bold"
+                                   VerticalAlignment="Center" />
+                        <!-- Current zone: what new timers get tagged with -->
+                        <Button Content="{Binding CurrentZoneText}"
+                                Command="{Binding ToggleZoneCommand}"
+                                Background="{Binding CurrentZoneBackground}"
+                                Foreground="{Binding CurrentZoneForeground}"
+                                ToolTip="{Binding CurrentZoneTooltip}"
+                                Style="{StaticResource ZonePill}"
+                                FontSize="11" Padding="6,1" Margin="8,0,0,0" />
+                    </StackPanel>
                     <TextBlock Text="{Binding HeaderHintText}"
                                Foreground="#88FFFFFF"
                                FontSize="10"
@@ -64,29 +96,44 @@
                 <ItemsControl ItemsSource="{Binding ActiveTimers}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="{StaticResource CardBg}"
+                            <Border Background="{Binding CardBackground, Mode=OneWay}"
+                                    BorderBrush="{Binding CardBorderBrush, Mode=OneWay}"
+                                    BorderThickness="3,0,0,0"
                                     CornerRadius="8" Padding="10,8" Margin="0,3">
-                                <StackPanel>
+                                <Grid>
+                                <!-- Running: icon + name, big countdown, progress -->
+                                <StackPanel Visibility="{Binding RunningVisibility, Mode=OneWay}">
                                     <!-- Icon + Name, mute/delete buttons -->
                                     <Grid>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" FontSize="12" FontFamily="Segoe UI"
+                                        <TextBlock Grid.Column="0" Text="{Binding Icon, Mode=OneWay}"
+                                                   FontSize="12" FontFamily="Segoe UI"
                                                    Foreground="{StaticResource TextPrimary}"
-                                                   VerticalAlignment="Center">
-                                            <Run Text="{Binding Icon, Mode=OneWay}" />
-                                            <Run Text=" " />
-                                            <Run Text="{Binding Name, Mode=OneWay}" />
-                                        </TextBlock>
-                                        <Button Grid.Column="1" Content="{Binding MuteGlyph, Mode=OneWay}"
+                                                   VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <Button Grid.Column="1" Content="{Binding ZoneText, Mode=OneWay}"
+                                                Command="{Binding ToggleZoneCommand}"
+                                                Background="{Binding ZoneBackground, Mode=OneWay}"
+                                                Foreground="{Binding ZoneForeground, Mode=OneWay}"
+                                                ToolTip="{Binding ZoneTooltip, Mode=OneWay}"
+                                                Style="{StaticResource ZonePill}"
+                                                Margin="0,0,5,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Name, Mode=OneWay}"
+                                                   FontSize="12" FontFamily="Segoe UI"
+                                                   Foreground="{StaticResource TextPrimary}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                        <Button Grid.Column="3" Content="{Binding MuteGlyph, Mode=OneWay}"
                                                 Command="{Binding ToggleMuteCommand}"
                                                 IsEnabled="{Binding CanToggleMute, Mode=OneWay}"
                                                 Style="{StaticResource RowIconButton}"
                                                 ToolTip="Mute/unmute this timer" />
-                                        <Button Grid.Column="2" Content="✕"
+                                        <Button Grid.Column="4" Content="✕"
                                                 Command="{Binding DeleteCommand}"
                                                 Style="{StaticResource RowIconButton}"
                                                 ToolTip="Remove this timer" />
@@ -109,6 +156,48 @@
                                                 Width="{Binding ProgressWidth, Mode=OneWay}" />
                                     </Grid>
                                 </StackPanel>
+
+                                <!-- Done: one quiet line — ✓ badge, name, time since, remove -->
+                                <Grid Visibility="{Binding DoneVisibility, Mode=OneWay}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="18" Height="18" CornerRadius="9"
+                                            Background="{StaticResource DoneGreen}"
+                                            VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="✓" Foreground="White"
+                                                   FontSize="11" FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding Name, Mode=OneWay}"
+                                               FontFamily="Segoe UI" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimary}"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Content="{Binding ZoneText, Mode=OneWay}"
+                                            Command="{Binding ToggleZoneCommand}"
+                                            Background="{Binding ZoneBackground, Mode=OneWay}"
+                                            Foreground="{Binding ZoneForeground, Mode=OneWay}"
+                                            ToolTip="{Binding ZoneTooltip, Mode=OneWay}"
+                                            Style="{StaticResource ZonePill}"
+                                            Margin="8,0,0,0" />
+                                    <TextBlock Grid.Column="3" Text="{Binding DoneAgoText, Mode=OneWay}"
+                                               FontFamily="Segoe UI" FontSize="11"
+                                               Foreground="{StaticResource DoneMuted}"
+                                               VerticalAlignment="Center" Margin="6,0,4,0" />
+                                    <Button Grid.Column="4" Content="✕"
+                                            Command="{Binding DeleteCommand}"
+                                            Style="{StaticResource RowIconButton}"
+                                            Foreground="{StaticResource DoneMuted}"
+                                            VerticalAlignment="Center"
+                                            ToolTip="Remove this timer" />
+                                </Grid>
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -140,6 +229,13 @@
                     
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Content="Clear done" ToolTip="Remove all finished timers"
+                                Command="{Binding ClearDoneCommand}"
+                                Visibility="{Binding ClearDoneVisibility}"
+                                Background="#00C853" Foreground="White"
+                                FontSize="10" Padding="8,2" Margin="0,0,6,0"
+                                BorderThickness="0"
+                                Cursor="Hand" />
                         <Button Content="{Binding MuteGlyph}" ToolTip="Mute/unmute all alerts"
                                 Command="{Binding MuteCommand}"
                                 Background="#333333" Foreground="White"

@@ -40,6 +40,13 @@ public partial class App : Application
         var textParser = new TextParserService(_recipeService);
         _scanner = new ScreenScannerService(textParser, _timerService, _settingsService);
 
+        _timerService.CurrentZone = _settingsService.CurrentZone;
+        _timerService.CurrentZoneChanged += zone =>
+        {
+            _settingsService!.CurrentZone = zone;
+            Console.WriteLine($"[Zone] now {ZoneInfo.DisplayName(zone)}");
+        };
+
         // Play alert on timer completion, unless that entry was muted
         _timerService.TimerCompleted += timer =>
         {
@@ -76,6 +83,7 @@ public partial class App : Application
             _hotkeyService.NewTimerRequested += ShowControlPanel;
             _hotkeyService.ToggleScannerRequested += () => _scanner!.ToggleScanning();
             _hotkeyService.ToggleInteractiveRequested += ToggleOverlayInteractive;
+            _hotkeyService.ToggleZoneRequested += () => _timerService!.ToggleZone();
             _hotkeyService.AutoDetectRequested += async () =>
             {
                 // Unlike the button's RelayCommand, this fires off a raw
@@ -97,6 +105,7 @@ public partial class App : Application
         PrintHotkey(HotkeyActions.ToggleScanner, "Start/stop OCR scanner");
         PrintHotkey(HotkeyActions.AutoDetect, "Run Auto-Detect (works even if you can't click the overlay in-game)");
         PrintHotkey(HotkeyActions.ToggleInteractive, "Toggle click-through (for dragging/clicking the overlay)");
+        PrintHotkey(HotkeyActions.ToggleZone, "Switch zone for new timers (Hagga Basin / Deep Desert)");
         Console.WriteLine("  (Rebind these anytime from the ⚙ Settings button on the overlay)");
         Console.WriteLine("═══════════════════════════════════════");
     }

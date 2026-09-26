@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
+using DuneTimer.Models;
 using DuneTimer.Services;
 
 namespace DuneTimer.ViewModels;
@@ -19,6 +20,7 @@ public class OverlayViewModel : ViewModelBase
     private string _scannerStatusText = "Scanner off";
     private Brush _scannerStatusColor = OffBrush;
     private bool _isInteractive;
+    private int _doneCountAtSync;
 
     private static readonly Brush LockedHeaderBrush = new SolidColorBrush(Color.FromRgb(0xE9, 0x45, 0x60));
     private static readonly Brush InteractiveHeaderBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xC8, 0x53));
@@ -68,6 +70,16 @@ public class OverlayViewModel : ViewModelBase
 
         // Sync timers when collection changes
         _timerService.ActiveTimers.CollectionChanged += (_, _) => SyncTimers();
+        // Completion no longer removes the timer, so re-sort explicitly to move
+        // it to the top. OnTick runs on the UI dispatcher — no marshaling needed.
+        _timerService.TimerCompleted += _ => SyncTimers();
+        _timerService.CurrentZoneChanged += _ =>
+        {
+            OnPropertyChanged(nameof(CurrentZoneText));
+            OnPropertyChanged(nameof(CurrentZoneBackground));
+            OnPropertyChanged(nameof(CurrentZoneForeground));
+            OnPropertyChanged(nameof(CurrentZoneTooltip));
+        };
 
         // Status bar only ever shows the on/off scanning state. Everything else
         // the scanner reports (OCR reads, auto-detect summaries, errors) goes
@@ -89,6 +101,10 @@ public class OverlayViewModel : ViewModelBase
         {
             foreach (var vm in ActiveTimers)
                 vm.Refresh();
+            // A scanned done timer can be revived without a collection change —
+            // re-sort so it drops back out of the done group at the top.
+            if (_timerService.ActiveTimers.Count(t => t.IsDone) != _doneCountAtSync)
+                SyncTimers();
         };
         _refreshTimer.Start();
 
@@ -102,7 +118,22 @@ public class OverlayViewModel : ViewModelBase
                 vm.RefreshMute();
         });
         SettingsCommand = new DuneTimer.Helpers.RelayCommand(_ => OpenSettingsRequested?.Invoke());
+        ClearDoneCommand = new DuneTimer.Helpers.RelayCommand(_ => _timerService.ClearCompleted());
+        ToggleZoneCommand = new DuneTimer.Helpers.RelayCommand(_ => _timerService.ToggleZone());
     }
+
+    // The zone new timers get tagged with — flipped when the player travels.
+    public string CurrentZoneText => ZoneInfo.ShortName(_timerService.CurrentZone);
+    public Brush CurrentZoneBackground => TimerItemViewModel.ZoneBackgroundOf(_timerService.CurrentZone);
+    public Brush CurrentZoneForeground => TimerItemViewModel.ZoneForegroundOf(_timerService.CurrentZone);
+    public string CurrentZoneTooltip =>
+        $"New timers are tagged {ZoneInfo.DisplayName(_timerService.CurrentZone)} — click or Alt+L to switch";
+    public System.Windows.Input.ICommand ToggleZoneCommand { get; }
+
+    public System.Windows.Input.ICommand ClearDoneCommand { get; }
+
+    public Visibility ClearDoneVisibility =>
+        ActiveTimers.Any(t => t.IsDone) ? Visibility.Visible : Visibility.Collapsed;
 
     public System.Windows.Input.ICommand AutoDetectCommand { get; }
     public System.Windows.Input.ICommand MuteCommand { get; }
@@ -134,9 +165,16 @@ public class OverlayViewModel : ViewModelBase
     private void SyncTimers()
     {
         ActiveTimers.Clear();
-        foreach (var timer in _timerService.ActiveTimers.OrderBy(t => t.Remaining))
+        // Done timers first (oldest completion on top), then running by time left.
+        var ordered = _timerService.ActiveTimers
+            .OrderByDescending(t => t.IsDone)
+            .ThenBy(t => t.CompletedAt)
+            .ThenBy(t => t.Remaining);
+        foreach (var timer in ordered)
             ActiveTimers.Add(new TimerItemViewModel(timer, id => _timerService.RemoveTimer(id), _soundService));
+        _doneCountAtSync = _timerService.ActiveTimers.Count(t => t.IsDone);
         OnPropertyChanged(nameof(EmptyStateVisibility));
+        OnPropertyChanged(nameof(ClearDoneVisibility));
     }
 
     private void OnScanningStateChanged(bool isScanning)

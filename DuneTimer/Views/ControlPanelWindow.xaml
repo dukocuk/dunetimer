@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Dune Timer — Add Timer"
-        Width="420" Height="540"
+        Width="420" Height="600"
         WindowStartupLocation="CenterScreen"
         Topmost="True"
         Background="#1A1A2E"
@@ -17,9 +17,47 @@
         <Style TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Segoe UI" />
         </Style>
+
+        <!-- Segmented-control look for the zone radio buttons -->
+        <Style x:Key="ZoneOption" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bg" Background="{StaticResource CardBg}"
+                                BorderBrush="#0F3460" BorderThickness="2"
+                                CornerRadius="4" Padding="14,6" Margin="0,0,8,0">
+                            <ContentPresenter HorizontalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <!-- Zone-colored outline rather than fill: white text stays readable on both -->
+                                <Setter TargetName="Bg" Property="Background" Value="#0F3460" />
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <StackPanel Margin="20">
+        <!-- Zone: defaults to the overlay's current zone -->
+        <TextBlock Text="Zone" Foreground="{StaticResource TextPrimary}"
+                   FontSize="13" Margin="0,0,0,6" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <RadioButton Content="Hagga Basin" GroupName="Zone" Tag="#C8923A"
+                         IsChecked="{Binding IsHaggaBasin}"
+                         Style="{StaticResource ZoneOption}" />
+            <RadioButton Content="Deep Desert" GroupName="Zone" Tag="#4E6CF0"
+                         IsChecked="{Binding IsDeepDesert}"
+                         Style="{StaticResource ZoneOption}" />
+        </StackPanel>
+
         <!-- Category selector -->
         <TextBlock Text="Category" Foreground="{StaticResource TextPrimary}"
                    FontSize="13" Margin="0,0,0,6" />

@@ -22,6 +22,7 @@ internal static class NativeMethods
     public const uint VK_S = 0x53;
     public const uint VK_X = 0x58;
     public const uint VK_D = 0x44;
+    public const uint VK_L = 0x4C;
 
     public static string VirtualKeyToDisplayString(uint vk)
     {
@@ -34,6 +35,7 @@ internal static class NativeMethods
     public const int HOTKEY_TOGGLE_SCANNER = 9004;
     public const int HOTKEY_TOGGLE_INTERACTIVE = 9005;
     public const int HOTKEY_AUTO_DETECT = 9006;
+    public const int HOTKEY_TOGGLE_ZONE = 9007;
 
     public const int WM_HOTKEY = 0x0312;
 

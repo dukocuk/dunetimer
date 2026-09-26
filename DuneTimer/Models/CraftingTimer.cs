@@ -10,6 +10,7 @@ public class CraftingTimer
     public int Quantity { get; set; } = 1;
     public string? SourceRegionId { get; set; }
     public bool IsMuted { get; set; } = false;
+    public Zone Zone { get; set; }
 
     // Game seconds per real second. The in-game countdown doesn't tick at
     // exactly 1.0x, so scanned timers learn it (TimerService) — otherwise a
@@ -19,6 +20,11 @@ public class CraftingTimer
     // First reading of the current unbroken run of scans, used to measure Rate.
     public DateTime? RateAnchorAt { get; set; }
     public double RateAnchorRemaining { get; set; }
+
+    // Set once by TimerService when the countdown first hits zero. A finished
+    // timer stays listed (so it isn't forgotten) until the user removes it.
+    public DateTime? CompletedAt { get; set; }
+    public bool IsDone => CompletedAt is not null;
 
     public TimeSpan Remaining => TotalDuration - (DateTime.Now - StartTime) * Rate;
     public bool IsFinished => Remaining <= TimeSpan.Zero;

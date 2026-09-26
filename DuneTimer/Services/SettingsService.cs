@@ -74,6 +74,12 @@ public class SettingsService
         set { _settings.IsMuted = value; Save(); }
     }
 
+    public Zone CurrentZone
+    {
+        get => _settings.CurrentZone;
+        set { _settings.CurrentZone = value; Save(); }
+    }
+
     public Dictionary<string, HotkeyBinding> HotkeyBindings
     {
         get => _settings.HotkeyBindings;
@@ -147,6 +153,26 @@ public class SettingsService
                 Save();
             }
 
+            // Hotkey actions added after a user's settings.json was written
+            // (e.g. ToggleZone) would otherwise stay unbound forever. Seed each
+            // missing one with its default, unless that combo is already taken
+            // by a rebind. Regions are untouched, so no version bump needed.
+            bool addedHotkey = false;
+            foreach (var (action, binding) in HotkeyActions.Defaults())
+            {
+                if (settings.HotkeyBindings.ContainsKey(action)) continue;
+                bool comboTaken = settings.HotkeyBindings.Values.Any(b =>
+                    b.Modifiers == binding.Modifiers && b.Key == binding.Key);
+                if (comboTaken) continue;
+                settings.HotkeyBindings[action] = binding;
+                addedHotkey = true;
+            }
+            if (addedHotkey)
+            {
+                _settings = settings;
+                Save();
+            }
+
             return settings;
         }
         catch
@@ -167,6 +193,7 @@ public class AppSettings
     public List<ScanRegion> ScanRegions { get; set; } = new();
     public bool AutoScanEnabled { get; set; } = false;
     public bool IsMuted { get; set; } = false;
+    public Zone CurrentZone { get; set; } = Zone.HaggaBasin;
     public int SettingsVersion { get; set; } = 0;
     public Dictionary<string, HotkeyBinding> HotkeyBindings { get; set; } = new();
     public string? AlertSoundPath { get; set; } = null;

@@ -34,10 +34,11 @@ DuneTimer has no main window — after launch it lives in the system tray and as
 | `Alt+D` | Run auto-detect against a crafting panel |
 | `Alt+S` | Start the OCR scanner (runs an auto-detect first) |
 | `Alt+X` | Toggle click-through / interactive mode |
+| `Alt+L` | Switch zone for new timers (Hagga Basin / Deep Desert) |
 
 ### Manual timers
 
-Press `Alt+N` to open the Add Timer window. Either pick a **Category** and **Recipe** from the built-in list (set a **Quantity** to queue more than one), or fill in the "Custom Timer" fields (Name, Min, Sec) for anything not in the list, then click **Start Timer**. It appears on the overlay immediately.
+Press `Alt+N` to open the Add Timer window. Either pick a **Category** and **Recipe** from the built-in list (set a **Quantity** to queue more than one), or fill in the "Custom Timer" fields (Name, Min, Sec) for anything not in the list, then click **Start Timer**. It appears on the overlay immediately. The **Zone** choice at the top (Hagga Basin / Deep Desert) starts on the overlay's current zone and can be changed for just this timer.
 
 ### Auto-detect & OCR scanning
 
@@ -49,9 +50,13 @@ The panel showing the timer has to actually be open and visible on screen — Du
 
 The overlay is click-through by default so it doesn't block clicks to the game underneath. Press `Alt+X` to switch it to interactive mode — this is required before you can drag it by its header or click its buttons. Each timer row has a mute toggle and a ✕ to remove it. The bottom status bar shows the scanner's current status, a global mute button, a ⚙ button to open Settings, and an **Auto-Detect** button as a clickable alternative to `Alt+D`.
 
+When a timer finishes it flashes for a few seconds, then stays on the overlay as a compact ✓ card (with how long ago it finished) so you don't forget what's ready. Remove it with its ✕, or remove all finished timers at once with **Clear done** in the status bar.
+
+Every timer is tagged **HB** (Hagga Basin) or **DD** (Deep Desert). The game doesn't show which map you're on in a way the scanner can read, so the pill next to the overlay's title shows the *current zone* — press `Alt+L` (or click the pill) when you travel, and every new timer, scanned or manual, gets that tag. Click a card's tag to fix a mis-tagged timer. Scanned timers are matched per zone, so the same station type in both maps gets two separate timers.
+
 ### Settings
 
-Open Settings from the overlay's ⚙ button or the tray menu. From here you can rebind any of the five hotkeys above (click its box, then press a combo that includes Alt, Ctrl, or Shift), and set a custom alert sound — **Test** it, **Browse…** for a `.wav` file, or **Reset** to the default beep.
+Open Settings from the overlay's ⚙ button or the tray menu. From here you can rebind any of the six hotkeys above (click its box, then press a combo that includes Alt, Ctrl, or Shift), and set a custom alert sound — **Test** it, **Browse…** for a `.wav` file, or **Reset** to the default beep.
 
 ### System tray
 
